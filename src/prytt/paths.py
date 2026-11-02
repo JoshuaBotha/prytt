@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from prytt import config
-from prytt.stub import log
+from prytt.stub import first_line, log
 
 _S3_SCHEMES = ("s3://", "s3a://", "s3n://")
 _MODES = ("local", "passthrough")
@@ -176,20 +176,17 @@ def register_temp_views(spark) -> None:
     errors (unsupported format such as ORC, bad ``s3.mode``, passthrough
     without a region) are resolved before Spark is touched and raise.
     """
-    from prytt import formats
+    from pyspark.errors import PySparkException
+
+    from prytt.io import read_df
 
     for (database, table_name), table in mapped_tables().items():
         view = view_name(database, table_name)
-        fmt = formats.spark_format(table.format)
-        options = formats.spark_options(fmt, table.options)
-        local = map_path(table.path)
-        from pyspark.errors import PySparkException
-
+        df = read_df(spark, [table.path], table.format, table.options)  # lazy; config errors raise here
         try:
-            spark.read.format(fmt).options(**options).load(local).createOrReplaceTempView(view)
+            df.createOrReplaceTempView(view)
         except PySparkException as exc:
-            first_line = (str(exc).strip().splitlines() or [type(exc).__name__])[0]
-            log("WARN", f"temp view {view} for {database}.{table_name} skipped: {first_line}")
+            log("WARN", f"temp view {view} for {database}.{table_name} skipped: {first_line(exc)}")
             continue
         log("MAP", f"catalog {database}.{table_name} -> temp view {view}")
 

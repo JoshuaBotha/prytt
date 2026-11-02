@@ -18,9 +18,10 @@ Interface:
   ``create_dynamic_frame_from_catalog``, ``create_data_frame_from_options``,
   ``create_data_frame_from_catalog``, ``write_dynamic_frame_from_options``,
   ``write_dynamic_frame_from_catalog``, ``write_data_frame_from_catalog``.
-- Only ``connection_type="s3"`` is supported; paths go through
-  ``prytt.paths.map_path``, formats/options through ``prytt.formats``. Other
-  connection types log ``WARN`` and raise ``GlueLocalUnsupported``.
+- Only ``connection_type="s3"`` is supported; reads and writes go through
+  ``prytt.io.read_df`` / ``write_df`` (path mapping + format/option
+  translation). Other connection types log ``WARN`` and raise
+  ``GlueLocalUnsupported``.
 - ``from_catalog`` calls ``prytt.paths.resolve_table(database, table_name)``
   (the T5 seam) and then reads/writes like ``from_options`` with the table's
   path, format and options; ``additional_options`` are merged over the
@@ -32,16 +33,12 @@ Interface:
 - Any other attribute: delegated to the ``SparkSession`` if it has it
   (``sql``, ``read``, ``table``, ...), else the ``LogAny`` catch-all
   (``purge_s3_path``, ``getSink``, ... log ``STUB``).
-
-Module helpers (shared with the catalog code):
-
-- ``read_df(spark, paths, format, format_options) -> DataFrame``
-- ``write_df(df, path, format, format_options, partition_keys=None)``
 """
 
 import logging
 
-from prytt import formats, paths, server
+from prytt import paths, server
+from prytt.io import read_df, write_df
 from prytt.stub import GlueLocalUnsupported, LogAny, log
 
 __all__ = ["GlueContext"]
@@ -60,26 +57,6 @@ def _require_s3(connection_type, what):
 def _warn_ignored(what, connection_options):
     for key in sorted(set(connection_options) - _PATH_OPTIONS):
         log("WARN", f"{what}: connection option {key}={connection_options[key]!r} ignored locally")
-
-
-def read_df(spark, uris, format, format_options=None):
-    fmt = formats.spark_format(format)
-    local = paths.map_paths(uris)
-    if not local:
-        raise ValueError("prytt: connection_options needs 'paths' (a list of s3:// URIs)")
-    reader = spark.read.format(fmt).options(**formats.spark_options(fmt, format_options))
-    return reader.load(local)
-
-
-def write_df(df, uri, format, format_options=None, partition_keys=None):
-    if not uri:
-        raise ValueError("prytt: connection_options needs 'path' (an s3:// URI)")
-    fmt = formats.spark_format(format)
-    local = paths.map_path(uri, for_write=True)
-    writer = df.write.format(fmt).mode("append").options(**formats.spark_options(fmt, format_options, write=True))
-    if partition_keys:
-        writer = writer.partitionBy(*partition_keys)
-    writer.save(local)
 
 
 def _as_df(frame):
