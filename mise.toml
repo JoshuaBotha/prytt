@@ -1,0 +1,6 @@
+[tools]
+python = "3.13"
+uv = "latest"
+
+# No SPARK_REMOTE here: prytt starts an in-process Sail server when it is unset.
+# To use your own server instead, export SPARK_REMOTE=sc://localhost:50051 in your shell.
