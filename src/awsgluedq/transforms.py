@@ -1,4 +1,4 @@
-"""``awsgluedq.transforms`` stub (spec §9).
+"""``awsgluedq.transforms`` stub.
 
 Glue Studio scripts insert ``EvaluateDataQuality``. Locally no rules run:
 

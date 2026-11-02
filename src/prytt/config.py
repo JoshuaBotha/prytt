@@ -1,4 +1,4 @@
-"""prytt configuration (spec §11). Lazy: nothing is read until first use.
+"""prytt configuration. Lazy: nothing is read until first use.
 
 Interface:
 

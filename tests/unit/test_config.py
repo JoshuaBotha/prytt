@@ -1,4 +1,4 @@
-"""prytt.config: sources, precedence and defaults (spec §11)."""
+"""prytt.config: sources, precedence and defaults."""
 
 from pathlib import Path
 

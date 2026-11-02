@@ -1,4 +1,4 @@
-"""``awsglue.utils`` shim (spec §9). Pure Python, no Spark.
+"""``awsglue.utils`` shim. Pure Python, no Spark.
 
 Interface:
 

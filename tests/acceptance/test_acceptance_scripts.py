@@ -1,4 +1,4 @@
-"""T9: the spec §13 acceptance scripts, run unmodified as subprocesses.
+"""T9: the acceptance scripts, run unmodified as subprocesses.
 
 Each script in ``scripts/`` is a plain Glue-style job. It runs in a fresh
 interpreter (so the installed ``prytt.pth`` path is real) with ``cwd`` set to a

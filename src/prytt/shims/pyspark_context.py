@@ -1,4 +1,4 @@
-"""``pyspark.context`` replacement (spec §8). pyspark-client has no SparkContext.
+"""``pyspark.context`` replacement. pyspark-client has no SparkContext.
 
 Served as ``pyspark.context`` by ``prytt._hooks``; also ``pyspark.SparkContext``.
 

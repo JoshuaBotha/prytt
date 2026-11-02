@@ -1,4 +1,4 @@
-"""pytest plugin (spec §4 Test), auto-registered through the ``pytest11`` entry point.
+"""pytest plugin, auto-registered through the ``pytest11`` entry point.
 
 Fixtures:
 

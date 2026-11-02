@@ -1,4 +1,4 @@
-"""awsglue.dynamicframe: DynamicFrame and DynamicFrameCollection on Sail (spec §9).
+"""awsglue.dynamicframe: DynamicFrame and DynamicFrameCollection on Sail.
 
 One Spark session for the whole module: it is slow to start.
 """

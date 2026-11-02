@@ -1,4 +1,4 @@
-"""Glue format names and ``format_options`` -> Spark (spec §9).
+"""Glue format names and ``format_options`` -> Spark.
 
 Interface:
 

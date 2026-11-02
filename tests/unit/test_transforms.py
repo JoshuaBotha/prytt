@@ -1,4 +1,4 @@
-"""awsglue.transforms: thin Glue-signature wrappers over DynamicFrame (spec §9).
+"""awsglue.transforms: thin Glue-signature wrappers over DynamicFrame.
 
 One Spark session for the whole module: it is slow to start.
 """

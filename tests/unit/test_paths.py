@@ -1,4 +1,4 @@
-"""prytt.paths: s3:// -> local mapping, passthrough mode (spec §10, §11)."""
+"""prytt.paths: s3:// -> local mapping, passthrough mode."""
 
 import pytest
 

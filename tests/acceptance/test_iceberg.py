@@ -1,4 +1,4 @@
-"""T10: Iceberg ``glue_catalog`` (spec §10), in fresh interpreters (real ``prytt.pth``).
+"""T10: Iceberg ``glue_catalog``, in fresh interpreters (real ``prytt.pth``).
 
 Sail's catalogs live in memory, so each case runs scripts as subprocesses and
 checks what a *later* process (or session) can still see.

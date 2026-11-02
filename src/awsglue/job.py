@@ -1,4 +1,4 @@
-"""``awsglue.job`` shim (spec §9). Bookmarks are a no-op locally.
+"""``awsglue.job`` shim. Bookmarks are a no-op locally.
 
 Interface:
 

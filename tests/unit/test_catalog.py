@@ -1,4 +1,4 @@
-"""Catalog mapping through GlueContext and temp views (spec §10 Catalog).
+"""Catalog mapping through GlueContext and temp views.
 
 Live Sail session; one GlueContext for the module.
 """

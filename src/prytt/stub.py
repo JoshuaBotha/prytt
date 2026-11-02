@@ -1,4 +1,4 @@
-"""Shared logging, the ``LogAny`` catch-all and strict mode (spec §9, §12).
+"""Shared logging, the ``LogAny`` catch-all and strict mode.
 
 Interface:
 

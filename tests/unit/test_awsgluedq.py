@@ -1,4 +1,4 @@
-"""awsgluedq.transforms.EvaluateDataQuality stub (spec §9)."""
+"""awsgluedq.transforms.EvaluateDataQuality stub."""
 
 import pytest
 

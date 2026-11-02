@@ -1,4 +1,4 @@
-"""``awsglue.transforms`` shim (spec §9).
+"""``awsglue.transforms`` shim.
 
 Each transform is a class with a classmethod ``apply(...)`` taking Glue's
 keyword names. Real ones are thin wrappers over ``DynamicFrame`` methods:

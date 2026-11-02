@@ -1,4 +1,4 @@
-"""s3:// and catalog -> local mapping (spec §10).
+"""s3:// and catalog -> local mapping.
 
 Interface:
 

@@ -1,4 +1,4 @@
-"""awsglue.utils.getResolvedOptions (spec §9): real Glue argument parsing."""
+"""awsglue.utils.getResolvedOptions: real Glue argument parsing."""
 
 import pytest
 

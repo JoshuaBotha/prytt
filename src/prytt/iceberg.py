@@ -1,4 +1,4 @@
-"""Iceberg ``glue_catalog`` (spec §10). Sail's catalogs are in memory, so prytt
+"""Iceberg ``glue_catalog``. Sail's catalogs are in memory, so prytt
 rebuilds ``glue_catalog`` from the warehouse on disk for every new session.
 
 Warehouse layout: ``<iceberg.warehouse>/<db>/<tbl>``. Each directory under the

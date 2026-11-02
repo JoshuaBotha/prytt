@@ -1,4 +1,4 @@
-"""prytt.stub: [prytt] logging, the LogAny catch-all and strict mode (spec §9, §12)."""
+"""prytt.stub: [prytt] logging, the LogAny catch-all and strict mode."""
 
 import pytest
 

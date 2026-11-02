@@ -1,4 +1,4 @@
-"""``awsglue.data_source`` stub (spec §5). ``DataSource`` (from
+"""``awsglue.data_source`` stub. ``DataSource`` (from
 ``GlueContext.getSource``) is a ``LogAny``: every call logs ``STUB`` and returns
 the source. Use ``create_dynamic_frame.from_options`` for real reads.
 """

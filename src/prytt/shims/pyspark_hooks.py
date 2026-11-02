@@ -1,4 +1,4 @@
-"""Post-import hooks fired by ``prytt._hooks`` (spec §6 table). Order-independent.
+"""Post-import hooks fired by ``prytt._hooks``. Order-independent.
 
 - ``on_pyspark(module)``: set ``pyspark.SparkContext`` to the shim.
 - ``on_session(module)``: wrap ``SparkSession.Builder.getOrCreate`` / ``create``

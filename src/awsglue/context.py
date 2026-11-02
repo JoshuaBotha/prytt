@@ -1,4 +1,4 @@
-"""``awsglue.context`` shim (spec §9).
+"""``awsglue.context`` shim.
 
 Interface:
 

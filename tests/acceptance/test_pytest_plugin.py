@@ -1,4 +1,4 @@
-"""T8: the auto-registered pytest plugin (spec §4 Test).
+"""T8: the auto-registered pytest plugin.
 
 Each case runs pytest in a subprocess (pytester) so the ``pytest11`` entry
 point and a fresh Sail server are exercised for real.

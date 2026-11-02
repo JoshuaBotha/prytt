@@ -9,7 +9,7 @@ prototype with real hooks: ``spikes/s4_hook/prytt_spike/_hooks.py``.
 Interface:
 
 - ``WATCH``: set of module names the finder intercepts: ``pyspark``,
-  ``pyspark.context``, ``pyspark.sql.session`` (spec §6).
+  ``pyspark.context``, ``pyspark.sql.session``.
 - ``SERVE``: watched names prytt serves itself, mapped to the prytt module
   whose public names become the served module (``pyspark.context`` →
   ``prytt.shims.pyspark_context``; pyspark-client has no such module).

@@ -1,4 +1,4 @@
-"""``awsglue.dynamicframe`` shim (spec §9). A DynamicFrame wraps a DataFrame.
+"""``awsglue.dynamicframe`` shim. A DynamicFrame wraps a DataFrame.
 
 Interface (``DynamicFrame``; every frame-returning method returns a new
 ``DynamicFrame`` with the same ``glue_ctx``):
