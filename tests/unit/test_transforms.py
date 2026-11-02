@@ -87,6 +87,7 @@ def test_drop_fields_removes_top_level_and_nested(people):
     out = DropFields.apply(frame=people, paths=["age", "address.city"])
 
     assert ddl(out) == "struct<id:int,name:string,address:struct<country:string>>"
+    assert rows(out) == [(1, "ann", ("za",)), (2, "bob", ("uk",))]
 
 
 def test_rename_field_positional_and_keywords(people):
@@ -97,6 +98,9 @@ def test_rename_field_positional_and_keywords(people):
 
     assert by_position.toDF().columns == ["id", "full_name", "age", "address"]
     assert rows(by_keyword.select_fields(["address.town"])) == [(("cpt",),), (("ldn",),)]
+    address = by_keyword.toDF().schema["address"].dataType
+    assert "city" not in address.fieldNames()
+    assert sorted(address.fieldNames()) == ["country", "town"]
 
 
 def test_join_positional_frames_then_keys(spark, people):
@@ -109,9 +113,24 @@ def test_join_positional_frames_then_keys(spark, people):
 
     out = Join.apply(people, orders, ["id"], ["person_id"], transformation_ctx="j")
 
-    collected = out.toDF().collect()
-    assert sorted(r["order_id"] for r in collected) == [10, 11]
-    assert {r["name"] for r in collected} == {"ann"}
+    df = out.toDF()
+    assert {"id", "person_id", "order_id", "name"} <= set(df.columns)
+    assert sorted((r["id"], r["person_id"], r["order_id"], r["name"]) for r in df.collect()) == [
+        (1, 1, 10, "ann"),
+        (1, 1, 11, "ann"),
+    ]
+
+
+def test_join_on_same_key_name_keeps_one_key_column(spark, people):
+    from awsglue.dynamicframe import DynamicFrame
+    from awsglue.transforms import Join
+
+    orders = DynamicFrame.fromDF(spark.createDataFrame([(10, 2)], "order_id int, id int"), None, "orders")
+
+    df = Join.apply(frame1=people, frame2=orders, keys1=["id"], keys2=["id"]).toDF()
+
+    assert df.columns.count("id") == 1
+    assert [(r["id"], r["order_id"], r["name"]) for r in df.collect()] == [(2, 10, "bob")]
 
 
 def test_drop_null_fields_drops_all_null_columns_only(spark):
@@ -131,6 +150,7 @@ def test_resolve_choice_cast_specs(people):
     out = ResolveChoice.apply(frame=people, specs=[("age", "cast:long")], transformation_ctx="rc")
 
     assert dict(out.toDF().dtypes)["age"] == "bigint"
+    assert sorted((r["id"], r["age"]) for r in out.toDF().collect()) == [(1, 31), (2, 42)]
 
 
 def test_transforms_return_dynamic_frames_with_context(people):
