@@ -1,6 +1,6 @@
 # T6 transforms (real set + pass-through set)
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 04
 
 Spec: §9 `awsglue.transforms` table.
