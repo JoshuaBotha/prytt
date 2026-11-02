@@ -30,8 +30,9 @@ Interface:
   become ``_``).
 - ``register_temp_views(spark)``: ``server.on_new_session`` callback (wired
   in ``prytt.shims.pyspark_hooks.on_session``) that registers each mapped
-  table as a temp view. Unreadable tables (no data yet) log ``WARN`` and are
-  skipped; registered ones log ``MAP``.
+  table as a temp view. Tables Spark cannot read (no data yet) log ``WARN``
+  and are skipped; registered ones log ``MAP``. Config errors (ORC, bad
+  ``s3.mode``, passthrough without a region) raise.
 """
 
 import os
@@ -170,18 +171,23 @@ def view_name(database: str, table_name: str) -> str:
 def register_temp_views(spark) -> None:
     """``on_new_session`` hook: each mapped table becomes temp view ``db_table``.
 
-    A table whose data cannot be read yet (nothing written, bad format) is
-    skipped with a ``WARN`` so session creation never fails because of it.
+    A table whose data Spark cannot read yet (nothing written) is skipped
+    with a ``WARN`` so session creation never fails because of it. Config
+    errors (unsupported format such as ORC, bad ``s3.mode``, passthrough
+    without a region) are resolved before Spark is touched and raise.
     """
     from prytt import formats
 
     for (database, table_name), table in mapped_tables().items():
         view = view_name(database, table_name)
+        fmt = formats.spark_format(table.format)
+        options = formats.spark_options(fmt, table.options)
+        local = map_path(table.path)
+        from pyspark.errors import PySparkException
+
         try:
-            fmt = formats.spark_format(table.format)
-            reader = spark.read.format(fmt).options(**formats.spark_options(fmt, table.options))
-            reader.load(map_path(table.path)).createOrReplaceTempView(view)
-        except Exception as exc:
+            spark.read.format(fmt).options(**options).load(local).createOrReplaceTempView(view)
+        except PySparkException as exc:
             first_line = (str(exc).strip().splitlines() or [type(exc).__name__])[0]
             log("WARN", f"temp view {view} for {database}.{table_name} skipped: {first_line}")
             continue

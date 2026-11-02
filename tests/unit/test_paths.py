@@ -153,3 +153,33 @@ def test_catalog_entry_without_path_or_format_is_a_config_error(tmp_path):
 
     with pytest.raises(ValueError, match=r"raw_db\.orders.*path"):
         paths.resolve_table("raw_db", "orders")
+
+
+class _NoSpark:
+    """A session that must not be touched: config errors come first."""
+
+    def __getattr__(self, name):
+        raise AssertionError(f"spark.{name} used before config was checked")
+
+
+@pytest.mark.parametrize(
+    "toml, env, error",
+    [
+        ('[catalog."db.t"]\npath = "s3://b/t/"\nformat = "orc"\n', {}, GlueLocalUnsupported),
+        ('[catalog."db.t"]\npath = "s3://b/t/"\nformat = "json"\n', {"PRYTT_S3_MODE": "cloud"}, ValueError),
+        (
+            '[catalog."db.t"]\npath = "s3://b/t/"\nformat = "json"\n',
+            {"PRYTT_S3_MODE": "passthrough", "AWS_CONFIG_FILE": "/nonexistent"},
+            RuntimeError,
+        ),
+    ],
+    ids=["orc", "bad-s3-mode", "passthrough-without-region"],
+)
+def test_temp_view_registration_raises_config_errors(monkeypatch, tmp_path, toml, env, error):
+    for name in ("AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE"):
+        monkeypatch.delenv(name, raising=False)
+    (tmp_path / "prytt.toml").write_text(toml)
+    set_env(monkeypatch, **env)
+
+    with pytest.raises(error):
+        paths.register_temp_views(_NoSpark())
