@@ -1,11 +1,18 @@
 name: Release
 
+# Releasing = bump `version` in pyproject.toml and merge to main. This tags
+# vX.Y.Z and publishes the GitHub Release unless that tag already exists.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: [pyproject.toml]
 
 permissions:
   contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -16,9 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
-      - run: mise run release:check-tag
-      - run: mise run ci
-      - name: Create GitHub Release
+      - run: mise run release:publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Tag and publish a GitHub Release for the pyproject version, unless that tag already exists"
+set -euo pipefail
+
+version=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+tag="v$version"
+
+if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+  echo "Tag $tag already exists, nothing to release"
+  exit 0
+fi
+
+mise run ci
+# --target makes gh create the tag at this commit, so no tag push is needed
+gh release create "$tag" dist/* --target "$(git rev-parse HEAD)" --generate-notes
+echo "Released $tag"

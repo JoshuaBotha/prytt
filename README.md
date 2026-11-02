@@ -315,3 +315,10 @@ Limits:
 uv sync            # installs prytt editable, including prytt.pth
 uv run pytest      # SPARK_REMOTE must be unset
 ```
+
+### Releasing
+
+Bump `version` in `pyproject.toml` and merge to `main`. The Release workflow
+runs `mise run release:publish`, which tags `vX.Y.Z` and publishes a GitHub
+Release with the wheel and sdist. If that tag already exists it does nothing,
+so merging unrelated changes never re-releases.
