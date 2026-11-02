@@ -326,12 +326,20 @@ def _():
     eq(rows(joined.filter("order_id = 104"), "name"), [("Grace",)])
 
 
-@check("DropNullFields drops an all-null column")
+@check("DropNullFields drops NullType fields (top-level and nested), by type not value")
 def _():
-    with_null = DynamicFrame.fromDF(customers_df.withColumn("always_null", F.lit(None)), glueContext, "wn")
-    out = DropNullFields.apply(frame=with_null, transformation_ctx="dnf").toDF()
-    eq("always_null" in out.columns, False, "always_null dropped")
+    # Glue's DropNullFields walks the schema and drops fields typed NullType.
+    # It never inspects values, so an all-null column with a real type stays.
+    src = (
+        customers_df.withColumn("always_null", F.lit(None))
+        .withColumn("typed_null", F.lit(None).cast("string"))
+        .withColumn("nested", F.struct(F.lit(1).alias("keep"), F.lit(None).alias("gone")))
+    )
+    out = DropNullFields.apply(frame=DynamicFrame.fromDF(src, glueContext, "wn"), transformation_ctx="dnf").toDF()
+    eq("always_null" in out.columns, False, "NullType column dropped")
+    eq("typed_null" in out.columns, True, "typed all-null column kept")
     eq("tier" in out.columns, True, "partly-null column kept")
+    eq(out.select("nested.*").columns, ["keep"], "nested NullType field dropped")
 
 
 @check("ResolveChoice transform cast spec")
@@ -496,8 +504,10 @@ def _():
     eq(rows(back.filter("cust_id = 1"), F.col("address.city"), F.size("tags")), [("London", 2)])
 
 
-@check("create_data_frame.from_options returns a DataFrame")
+@check("create_data_frame.from_options on S3 (Glue: streaming sources only)", tier="SMOKE")
 def _():
+    # Real Glue routes this through getStreamingSource (Kafka/Kinesis), so an
+    # S3 batch read is expected to fail there; prytt reads it as a batch.
     df = glueContext.create_data_frame.from_options(
         connection_type="s3",
         connection_options={"paths": [path("parquet", "orders")]},
@@ -519,7 +529,7 @@ def _():
             format="parquet",
             transformation_ctx=f"w_append_{i}",
         )
-    back = glueContext.create_data_frame.from_options(
+    back = glueContext.create_dynamic_frame.from_options(
         connection_type="s3", connection_options={"paths": [target]}, format="parquet"
     )
     eq(back.count(), 14)
