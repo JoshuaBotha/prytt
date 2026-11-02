@@ -69,12 +69,12 @@ Installed only as a dev dependency, from git (pin a tag). The very first run aft
 python jobs/bronze_to_silver.py --JOB_NAME local --source_path s3://raw-bucket/orders/
 ```
 
-On first Spark use, an in-process Sail server starts on an ephemeral port. `s3://raw-bucket/orders/` is read from `./.prytt/s3/raw-bucket/orders/`. Stubbed calls appear in the log, e.g.:
+On first Spark use, an in-process Sail server starts on an ephemeral port. `s3://raw-bucket/orders/` is read from `./.prytt/s3/raw-bucket/orders/`. Mappings, gaps and stubbed calls appear in the log, e.g.:
 
 ```
-[prytt] INFO Job.commit('local')
 [prytt] MAP  s3://raw-bucket/orders/ -> .prytt/s3/raw-bucket/orders/
 [prytt] WARN Filter.apply: not implemented, frame passed through unchanged
+[prytt] INFO Job.commit('local')
 ```
 
 ### Test
