@@ -25,5 +25,9 @@ packages = ["src/prytt", "src/awsglue", "src/awsgluedq"]
 [tool.hatch.build.targets.sdist]
 include = ["src", "prytt.pth", "tests", "README.md"]
 
+[project.entry-points.pytest11]
+prytt = "prytt.pytest_plugin"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-p pytester"
