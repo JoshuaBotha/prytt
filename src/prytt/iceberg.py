@@ -19,7 +19,12 @@ Interface (wired in ``prytt.shims.pyspark_hooks.register_session_setup``):
   ``CREATE DATABASE glue_catalog.<db>`` without ``LOCATION`` gets
   ``LOCATION '<warehouse>/<db>'``; otherwise Sail puts that database's tables
   flat in the warehouse as ``<tbl>-<uuid>`` and a later run could not tell
-  which database they belong to. Table dirs directly under the warehouse
+  which database they belong to. Sail's memory catalog has no default
+  database location setting, so this is a rewrite: it skips comments and
+  quoted text, drops a trailing ``;``, and only touches a single statement
+  that starts with that ``CREATE`` and has no ``LOCATION`` clause. A
+  multi-statement string, or an explicit ``LOCATION`` other than
+  ``<warehouse>/<db>``, is sent unchanged with a ``WARN``. Table dirs directly under the warehouse
   (tables of the default ``sail`` catalog) are not databases and are skipped.
   If the server has no ``glue_catalog`` (external server with its own
   catalog list), logs one ``WARN`` and only the warehouse dir is set.
@@ -40,7 +45,7 @@ SAIL_CATALOG_LIST = (
 )
 
 _CREATE_DB = re.compile(
-    r"^\s*CREATE\s+(?:DATABASE|SCHEMA|NAMESPACE)\s+(?:IF\s+NOT\s+EXISTS\s+)?"
+    r"\bCREATE\s+(?:DATABASE|SCHEMA|NAMESPACE)\s+(?:IF\s+NOT\s+EXISTS\s+)?"
     r"`?glue_catalog`?\s*\.\s*(?:`([^`]+)`|(\w+))",
     re.IGNORECASE,
 )
@@ -86,6 +91,91 @@ def _create_database(spark, warehouse: Path, name: str) -> None:
     spark.sql(f"CREATE DATABASE IF NOT EXISTS {CATALOG}.{_ident(name)} LOCATION {location}")
 
 
+def _mask(sql: str) -> str:
+    """``sql`` with the same length, but comments and string literal contents
+    blanked to spaces and backtick identifier contents to ``x``, so keywords
+    and ``;`` found in the result are real SQL tokens."""
+    out = list(sql)
+    n = len(sql)
+
+    def blank(start, end, char=" "):
+        for k in range(start, end):
+            if out[k] != "\n":
+                out[k] = char
+
+    i = 0
+    while i < n:
+        if sql.startswith("--", i):
+            end = sql.find("\n", i)
+            end = n if end == -1 else end
+            blank(i, end)
+        elif sql.startswith("/*", i):
+            end = sql.find("*/", i + 2)
+            end = n if end == -1 else end + 2
+            blank(i, end)
+        elif sql[i] in "'\"`":
+            quote = sql[i]
+            end = i + 1
+            while end < n:
+                if quote != "`" and sql[end] == "\\":
+                    end += 2
+                elif sql[end] == quote and sql.startswith(quote * 2, end):
+                    end += 2  # doubled quote inside the literal
+                elif sql[end] == quote:
+                    break
+                else:
+                    end += 1
+            end = min(end, n)
+            blank(i + 1, end, "x" if quote == "`" else " ")
+            end += 1
+        else:
+            end = i + 1
+        i = end
+    return "".join(out)
+
+
+def _rewrite_create_database(query: str, warehouse: Path) -> str:
+    """Add ``LOCATION '<warehouse>/<db>'`` to a ``CREATE DATABASE glue_catalog.<db>``.
+
+    Only a single statement whose first token is that ``CREATE`` and that has
+    no ``LOCATION`` clause of its own is rewritten. Comments, quoted text and
+    trailing ``;`` are handled. Anything else that creates a ``glue_catalog``
+    database is sent as is with a ``WARN``.
+    """
+    masked = _mask(query)
+    seen = _CREATE_DB.search(masked)
+    if seen is None:
+        return query
+    group = 1 if seen.group(1) is not None else 2
+    db = query[seen.start(group) : seen.end(group)].replace("``", "`")
+    location = warehouse / db
+
+    end = len(masked)
+    while end and (masked[end - 1].isspace() or masked[end - 1] == ";"):
+        end -= 1
+    at_start = masked[: seen.start()].strip() == ""
+    if not at_start or ";" in masked[:end]:
+        log(
+            "WARN",
+            f"{CATALOG} CREATE DATABASE not rewritten (multi-statement SQL or not at the start): "
+            f"add LOCATION {_literal(location)} yourself so later runs find database {db}'s tables",
+        )
+        return query
+    if _LOCATION.search(masked, seen.end(), end):
+        if _literal(location) in query[seen.end() : end]:
+            return query  # already where prytt looks for it (also prytt's own re-registration)
+        log(
+            "WARN",
+            f"{CATALOG} database {db} has its own LOCATION; kept as is "
+            f"(later runs re-register its tables only if it is {location})",
+        )
+        return query
+
+    tail = "".join(c for c, m in zip(query[end:], masked[end:]) if m != ";").rstrip()
+    log("MAP", f"{CATALOG} database {db} -> {location}")
+    return f"{query[:end]} LOCATION {_literal(location)}{tail}"
+
+
 def _wrap_sql(spark, warehouse: Path) -> None:
     sql = spark.sql
     if getattr(sql, "__prytt_wrapped__", False):
@@ -94,11 +184,7 @@ def _wrap_sql(spark, warehouse: Path) -> None:
     @functools.wraps(sql)
     def wrapper(sqlQuery, *args, **kwargs):
         if isinstance(sqlQuery, str):
-            match = _CREATE_DB.match(sqlQuery)
-            if match and not _LOCATION.search(sqlQuery):
-                location = warehouse / (match.group(1) or match.group(2))
-                sqlQuery = f"{sqlQuery.rstrip().rstrip(';')} LOCATION {_literal(location)}"
-                log("MAP", f"{CATALOG} database {match.group(1) or match.group(2)} -> {location}")
+            sqlQuery = _rewrite_create_database(sqlQuery, warehouse)
         return sql(sqlQuery, *args, **kwargs)
 
     wrapper.__prytt_wrapped__ = True
