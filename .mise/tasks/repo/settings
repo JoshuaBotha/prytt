@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+#MISE description="Apply GitHub repo settings: features, merge rules, main ruleset (idempotent). Args: any of features merge ruleset (default: all)"
+set -euo pipefail
+
+steps=("$@")
+[ ${#steps[@]} -gt 0 ] || steps=(features merge ruleset)
+
+repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+want() { printf '%s\n' "${steps[@]}" | grep -qx "$1"; }
+
+if want features; then
+  echo "==> Features and security"
+  gh api -X PATCH "repos/$repo" --input - >/dev/null <<'JSON'
+{
+  "has_wiki": false,
+  "has_projects": false,
+  "security_and_analysis": {
+    "secret_scanning": {"status": "enabled"},
+    "secret_scanning_push_protection": {"status": "enabled"}
+  }
+}
+JSON
+  gh api -X PUT "repos/$repo/vulnerability-alerts"
+  gh api -X PUT "repos/$repo/private-vulnerability-reporting"
+  gh api -X PUT "repos/$repo/topics" --input - >/dev/null <<'JSON'
+{"names": ["aws-glue", "pyspark", "sail", "spark-connect", "local-development"]}
+JSON
+fi
+
+if want merge; then
+  echo "==> Merge settings (squash only, PR title, delete branches)"
+  gh api -X PATCH "repos/$repo" --input - >/dev/null <<'JSON'
+{
+  "allow_squash_merge": true,
+  "allow_merge_commit": false,
+  "allow_rebase_merge": false,
+  "squash_merge_commit_title": "PR_TITLE",
+  "squash_merge_commit_message": "BLANK",
+  "delete_branch_on_merge": true
+}
+JSON
+fi
+
+if want ruleset; then
+  echo "==> Ruleset: main-protection"
+  body=$(cat <<'JSON'
+{
+  "name": "main-protection",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}},
+  "bypass_actors": [
+    {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}
+  ],
+  "rules": [
+    {"type": "deletion"},
+    {"type": "non_fast_forward"},
+    {"type": "pull_request", "parameters": {
+      "required_approving_review_count": 0,
+      "dismiss_stale_reviews_on_push": false,
+      "require_code_owner_review": false,
+      "require_last_push_approval": false,
+      "required_review_thread_resolution": false
+    }},
+    {"type": "required_status_checks", "parameters": {
+      "strict_required_status_checks_policy": true,
+      "required_status_checks": [
+        {"context": "ci (ubuntu-latest)"},
+        {"context": "ci (macos-latest)"}
+      ]
+    }}
+  ]
+}
+JSON
+)
+  id=$(gh api "repos/$repo/rulesets" --jq '.[] | select(.name=="main-protection") | .id')
+  if [ -n "$id" ]; then
+    echo "$body" | gh api -X PUT "repos/$repo/rulesets/$id" --input - >/dev/null
+  else
+    echo "$body" | gh api -X POST "repos/$repo/rulesets" --input - >/dev/null
+  fi
+fi
+
+echo "Done."
