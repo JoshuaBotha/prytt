@@ -193,6 +193,39 @@ To test a whole job end to end, run the script with `subprocess` and
 `sys.executable`, then check its output. That is how prytt's own acceptance
 tests work (`tests/acceptance/`).
 
+### Extra `SparkSession`s
+
+If a test makes a second session with `SparkSession.builder.create()`, call
+`stop()` on it when the test is done:
+
+```python
+other = SparkSession.builder.create()
+try:
+    ...
+finally:
+    other.stop()
+```
+
+Background: in pyspark-client, a session that is dropped without `stop()` is
+closed by its `__del__` once garbage collection reaches it. That close also
+shuts down a thread pool that all sessions share. If the collection happens
+while another session is mid-query, the process deadlocks: the run hangs with
+no error and 0% CPU, in whichever test is running at the time. prytt patches
+that `__del__` so a collected session closes only its own connection, which
+avoids the hang. Stopping extra sessions yourself is still cleaner and doesn't
+depend on the patch.
+
+prytt's own test config dumps every thread's stack after 60 s and fails the
+run after 180 s, so a hang shows where it's stuck instead of stalling CI.
+Copy that if your suite needs it (it uses the `pytest-timeout` plugin):
+
+```toml
+[tool.pytest.ini_options]
+faulthandler_timeout = 60
+timeout = 180
+timeout_method = "thread"
+```
+
 ## Configuration
 
 Settings come from these sources, highest priority first:

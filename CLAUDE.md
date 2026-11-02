@@ -36,3 +36,4 @@ mise is the single entry point for tooling, tasks and env vars, so a task runs t
 - Always set `spark.sql.warehouse.dir` to an absolute path, or Delta writes `./spark-warehouse` into cwd and Iceberg CTAS fails.
 - Sail catalogs are in-memory per session: re-register `glue_catalog` / mapped tables on every new session.
 - `mapInPandas` under pandas 3: `NULL` strings arrive as `NaN` (convert to `None`); worker exceptions arrive as empty `PythonException()` (re-raise with traceback).
+- pyspark-client `SparkSession.__del__` shuts down a process-wide thread pool; if the GC runs it inside that pool's `submit()` it self-deadlocks (0% CPU hang). prytt replaces `__del__` (`pyspark_hooks.on_connect_session`, test `tests/unit/test_session_gc.py`). Tests that `builder.create()` an extra session should still `stop()` it.

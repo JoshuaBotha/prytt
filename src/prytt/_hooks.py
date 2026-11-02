@@ -29,6 +29,7 @@ SERVE = {"pyspark.context": "prytt.shims.pyspark_context"}
 POST = {
     "pyspark": "prytt.shims.pyspark_hooks:on_pyspark",
     "pyspark.sql.session": "prytt.shims.pyspark_hooks:on_session",
+    "pyspark.sql.connect.session": "prytt.shims.pyspark_hooks:on_connect_session",
 }
 WATCH = set(SERVE) | set(POST)
 

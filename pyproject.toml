@@ -9,7 +9,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "pytest>=8",
+    "pytest-timeout>=2.4.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -31,3 +34,9 @@ prytt = "prytt.pytest_plugin"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-p pytester"
+# Hang diagnostics: at 60 s dump every thread's stack (non-fatal, works even if
+# a C call holds the GIL); at 180 s kill the run so CI fails fast instead of
+# hanging. "thread", because SIGALRM can't interrupt a blocked gRPC call.
+faulthandler_timeout = 60
+timeout = 180
+timeout_method = "thread"
