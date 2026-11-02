@@ -1,6 +1,6 @@
 # T7 awsgluedq stub
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 Spec: §9 `awsgluedq.transforms.EvaluateDataQuality`.
