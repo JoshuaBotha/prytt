@@ -9,8 +9,9 @@ Interface:
 
 ``Config`` is a frozen dataclass: ``disable``, ``log_level``, ``strict``,
 ``sail_port``, ``s3_mode``, ``s3_root`` (as configured, relative to cwd),
-``catalog_on_missing``, ``catalog`` (``{"db.table": {path, format, ...}}``)
-and ``iceberg_warehouse`` (absolute ``Path``).
+``catalog_on_missing``, ``catalog`` (``{"db.table": {path, format, ...}}``),
+``iceberg_warehouse`` (absolute ``Path``) and ``args`` (``{name: str}``,
+local job arguments for ``getResolvedOptions``).
 
 Sources, highest first: ``PRYTT_*`` env vars, the nearest ``prytt.toml``
 (top-level keys), ``[tool.prytt]`` in the nearest ``pyproject.toml`` (both
@@ -20,6 +21,9 @@ per key, not per table. ``strict`` defaults to true when ``CI`` is truthy,
 but an explicit ``strict`` from any source wins. ``s3.mode`` must be
 ``local``/``passthrough`` and ``catalog.on_missing`` ``error``/``empty``;
 bad values (like bad booleans) raise ``ValueError`` when the config loads.
+Job arguments come from an ``[args]`` table (any key, values made strings,
+booleans as ``true``/``false``) and ``PRYTT_ARG_<name>`` env vars, merged
+per name with the same precedence.
 """
 
 import os
@@ -38,6 +42,7 @@ class Config:
     catalog_on_missing: str = "error"
     catalog: dict = field(default_factory=dict)
     iceberg_warehouse: Path = Path(".prytt/warehouse")
+    args: dict = field(default_factory=dict)
 
 
 _TRUE = ("1", "true", "yes", "on")
@@ -105,14 +110,27 @@ def _read_toml(path: Path) -> dict:
         return tomllib.load(fh)
 
 
-def _flatten(table: dict, origin: Path, catalog: dict) -> dict:
+_ARG_ENV_PREFIX = "PRYTT_ARG_"
+
+
+def _arg_value(value) -> str:
+    """Glue passes every argument as a string."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _flatten(table: dict, origin: Path, catalog: dict, args: dict) -> dict:
     """Turn ``{"sail": {"port": 1}}`` into ``{"sail.port": 1}``.
 
     Sub-tables under ``catalog`` are table mappings; they go into ``catalog``.
+    The ``args`` table holds job arguments; it goes into ``args``.
     """
     flat = {}
     for name, value in table.items():
-        if isinstance(value, dict):
+        if name == "args" and isinstance(value, dict):
+            args.update({key: _arg_value(arg) for key, arg in value.items()})
+        elif isinstance(value, dict):
             for sub, subvalue in value.items():
                 if name == "catalog" and isinstance(subvalue, dict):
                     catalog[sub] = subvalue
@@ -126,16 +144,16 @@ def _flatten(table: dict, origin: Path, catalog: dict) -> dict:
     return flat
 
 
-def _file_sources(cwd: Path, catalog: dict) -> list:
-    """File layers, lowest priority first. Fills ``catalog`` in the same order."""
+def _file_sources(cwd: Path, catalog: dict, args: dict) -> list:
+    """File layers, lowest priority first. Fills ``catalog`` and ``args`` in the same order."""
     layers = []
     pyproject = _nearest("pyproject.toml", cwd)
     if pyproject is not None:
         table = _read_toml(pyproject).get("tool", {}).get("prytt", {})
-        layers.append(_flatten(table, pyproject, catalog))
+        layers.append(_flatten(table, pyproject, catalog, args))
     prytt_toml = _nearest("prytt.toml", cwd)
     if prytt_toml is not None:
-        layers.append(_flatten(_read_toml(prytt_toml), prytt_toml, catalog))
+        layers.append(_flatten(_read_toml(prytt_toml), prytt_toml, catalog, args))
     return layers
 
 
@@ -144,11 +162,15 @@ def load(env=None, cwd=None) -> Config:
     cwd = Path.cwd() if cwd is None else Path(cwd)
 
     catalog = {}
+    args = {}
     merged = {}
-    for source in (*_file_sources(cwd, catalog), _from_env(env)):  # lowest first
+    for source in (*_file_sources(cwd, catalog, args), _from_env(env)):  # lowest first
         merged.update(source)
+    for var, value in env.items():
+        if var.startswith(_ARG_ENV_PREFIX) and len(var) > len(_ARG_ENV_PREFIX):
+            args[var[len(_ARG_ENV_PREFIX):]] = value
 
-    values = {"catalog": catalog}
+    values = {"catalog": catalog, "args": args}
     for key, raw in merged.items():
         name, _, parse = _KEYS[key]
         values[name] = parse(raw)

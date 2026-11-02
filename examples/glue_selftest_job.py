@@ -16,6 +16,7 @@ Check tiers:
 Run locally (prytt installed):
   python glue_selftest_job.py --JOB_NAME selftest
   python glue_selftest_job.py --JOB_NAME selftest --base_path s3://my-bucket/selftest --with_iceberg true
+  python glue_selftest_job.py   # JOB_NAME is None (logged WARN); or set PRYTT_ARG_JOB_NAME / [args] in prytt.toml
 
 Run on AWS Glue 6:
   Job parameters:
@@ -202,13 +203,14 @@ def _():
     eq(got["B"], "two", "B")
 
 
-@check("getResolvedOptions: missing required option raises")
+@check("getResolvedOptions: missing option (Glue raises; prytt returns None unless strict)", tier="SMOKE")
 def _():
     try:
-        getResolvedOptions(["prog", "--A", "1"], ["A", "MISSING"])
+        got = getResolvedOptions(["prog", "--A", "1"], ["A", "MISSING"])
     except BaseException as exc:  # argparse raises SystemExit on Glue
-        return type(exc).__name__
-    raise AssertionError("no error for missing option")
+        return f"raised {type(exc).__name__}"
+    eq(got["MISSING"], None, "MISSING")
+    return "returned None"
 
 
 @check("Job.isInitialized after init")

@@ -186,3 +186,27 @@ def test_enum_values_are_accepted_from_files(tmp_path):
     cfg = config.load(env={}, cwd=tmp_path)
 
     assert (cfg.s3_mode, cfg.catalog_on_missing) == ("passthrough", "empty")
+
+
+def test_job_args_default_to_empty(tmp_path):
+    assert config.load(env={}, cwd=tmp_path).args == {}
+
+
+def test_job_args_come_from_files_and_env_with_env_highest(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        """
+[tool.prytt.args]
+JOB_NAME = "from-pyproject"
+source_path = "s3://raw/in/"
+"""
+    )
+    (tmp_path / "prytt.toml").write_text('[args]\nsource_path = "s3://raw/other/"\nwith_iceberg = true\n')
+    env = {"PRYTT_ARG_JOB_NAME": "from-env"}
+
+    cfg = config.load(env=env, cwd=tmp_path)
+
+    assert cfg.args == {
+        "JOB_NAME": "from-env",
+        "source_path": "s3://raw/other/",
+        "with_iceberg": "true",
+    }
