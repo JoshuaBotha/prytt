@@ -1,6 +1,6 @@
 # T9 acceptance scripts + README
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 03, 05, 06, 07
 
 Spec: §13 Acceptance scripts 1–4; §4; §5 Name clash; §10 passthrough caveat.
@@ -12,3 +12,7 @@ Spec: §13 Acceptance scripts 1–4; §4; §5 Name clash; §10 passthrough cavea
 ## Acceptance
 - All four acceptance tests pass.
 
+
+## Comments
+
+Strict-mode gaps found (fix in review pass): `sc.setLogLevel`, `sc._jsc.hadoopConfiguration().set`, `job.isInitialized()`, `EvaluateDataQuality().process_rows` raise under strict. `spark.sparkContext` is a Spark Connect limit.
