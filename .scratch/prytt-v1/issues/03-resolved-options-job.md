@@ -1,6 +1,6 @@
 # T3 getResolvedOptions + Job
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 Spec: §9 `awsglue.utils.getResolvedOptions`, `awsglue.job.Job`.
