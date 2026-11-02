@@ -1,6 +1,6 @@
 # T5 catalog mapping + temp views
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 04
 
 Spec: §10 Catalog; §11 catalog.* keys.
