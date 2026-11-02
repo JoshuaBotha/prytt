@@ -9,7 +9,7 @@ python jobs/bronze_to_silver.py --JOB_NAME local --source_path s3://raw-bucket/o
 ```
 
 ```
-[prytt] INFO prytt 0.1.0, pysail 0.7.3, pyspark-client 4.1.4; sail at sc://127.0.0.1:52341
+[prytt] INFO prytt 0.1.1, pysail 0.7.3, pyspark-client 4.1.4; sail at sc://127.0.0.1:52341
 [prytt] INFO Job.init('local'), bookmarks off
 [prytt] MAP  s3://raw-bucket/orders/ -> /home/me/proj/.prytt/s3/raw-bucket/orders/
 [prytt] WARN Filter not applied locally (v1); data passed through unchanged
@@ -18,10 +18,20 @@ python jobs/bronze_to_silver.py --JOB_NAME local --source_path s3://raw-bucket/o
 
 ## Install
 
-Add it as a dev dependency from git (pin a tag):
+prytt needs **Python 3.13**, the version AWS Glue 6 runs. Your project's
+`requires-python` must allow it, or uv fails with "requested Python version
+does not satisfy Python>=3.13". Pin 3.13 in the project that uses prytt:
 
 ```bash
-uv add --dev "prytt @ git+https://<host>/<org>/prytt.git@v0.1.0"
+uv python pin 3.13                                  # writes .python-version
+# pyproject.toml: requires-python = "==3.13.*"      # matches Glue 6 exactly
+```
+
+(`uv init --python 3.13` sets both for a new project.) Then add it as a dev
+dependency from git (pin a tag):
+
+```bash
+uv add --dev "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.1.1"
 ```
 
 This pulls in `pysail` and `pyspark-client` (4.1.x). Nothing else needs

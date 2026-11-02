@@ -58,7 +58,7 @@ This is **not** a correctness or parity test of Glue. It is a fast local feedbac
 ### Install
 
 ```bash
-uv add --dev "prytt @ git+https://<host>/<org>/prytt.git@v0.1.0"   # pulls pysail + pyspark-client>=4.1,<4.2
+uv add --dev "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.1.1"   # pulls pysail + pyspark-client>=4.1,<4.2
 ```
 
 Installed only as a dev dependency, from git (pin a tag). The very first run after install can take ~30 s before Sail answers (one-off native library load on macOS); later runs start in well under a second. PyPI publishing may follow later; the install line then becomes `uv add --dev prytt`. Nothing else to configure for the default path.
