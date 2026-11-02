@@ -1,6 +1,6 @@
 # T4 GlueContext + DynamicFrame + reader/writer + S3 mapping
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 02
 
 Spec: §9 GlueContext, DynamicFrame, DynamicFrameCollection, format mapping; §10 S3; §11 s3.* keys.

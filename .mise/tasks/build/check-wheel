@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Install the built wheel into a clean venv and check it"
+#MISE depends=["build:dist"]
+set -euo pipefail
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+uv venv --quiet "$tmp/venv"
+uv pip install --quiet --python "$tmp/venv/bin/python" dist/*.whl
+
+site=$("$tmp/venv/bin/python" -c "import sysconfig; print(sysconfig.get_path('purelib'))")
+test -f "$site/prytt.pth" || { echo "prytt.pth not at site-packages root ($site)" >&2; exit 1; }
+
+# Run away from the repo so the installed wheel is what imports.
+(cd "$tmp" && "$tmp/venv/bin/python" -c "import prytt, awsglue, awsgluedq; print('wheel ok')")

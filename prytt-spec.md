@@ -69,12 +69,12 @@ Installed only as a dev dependency, from git (pin a tag). The very first run aft
 python jobs/bronze_to_silver.py --JOB_NAME local --source_path s3://raw-bucket/orders/
 ```
 
-On first Spark use, an in-process Sail server starts on an ephemeral port. `s3://raw-bucket/orders/` is read from `./.prytt/s3/raw-bucket/orders/`. Stubbed calls appear in the log, e.g.:
+On first Spark use, an in-process Sail server starts on an ephemeral port. `s3://raw-bucket/orders/` is read from `./.prytt/s3/raw-bucket/orders/`. Mappings, gaps and stubbed calls appear in the log, e.g.:
 
 ```
-[prytt] STUB Job.commit()
 [prytt] MAP  s3://raw-bucket/orders/ -> .prytt/s3/raw-bucket/orders/
 [prytt] WARN Filter.apply: not implemented, frame passed through unchanged
+[prytt] INFO Job.commit('local')
 ```
 
 ### Test
@@ -154,7 +154,7 @@ Hook firing order seen in spike S4: `pyspark.sql.session` first (pyspark's `__in
 - Otherwise start Sail **in-process** in the background on an ephemeral port: `SparkConnectServer(ip="127.0.0.1", port=0).start(background=True)` (returns in ~20 ms). Read the bound address from `server.listening_address` (a `(host, port)` tuple; `None` once stopped) and set `os.environ["SPARK_REMOTE"] = "sc://127.0.0.1:<port>"` before any session is built.
 - Set Sail's own environment before `start()`: `SAIL_CATALOG__LIST` / `SAIL_CATALOG__DEFAULT_CATALOG` for `glue_catalog` (section 10). Sail reads it at start.
 - Register `atexit` to stop the session and then the server. Spike S3: the process exits cleanly even without `stop()`, but the explicit stop gives ordered shutdown and logs.
-- Sail logs to stderr at INFO by default. Quiet it (e.g. `RUST_LOG=warn` unless already set) and let `log_level=DEBUG` restore it.
+- Sail logs to stderr at INFO by default. prytt sets `RUST_LOG=error` unless `RUST_LOG` is already set, and `log_level=DEBUG` leaves Sail at its default. `error` rather than `warn` because Sail logs benign warnings on every normal shutdown, which would add noise to every run.
 - Subprocess mode (`sail spark server --port <free port>`) is not needed (spike S3). Keep it only as a documented escape hatch, not built in v1.
 - Config can pin the port (`sail.port`) for debugging with an external client.
 
@@ -168,8 +168,8 @@ Hook firing order seen in spike S4: `pyspark.sql.session` first (pyspark's `__in
 |---|---|
 | `SparkContext(...)`, `SparkContext.getOrCreate(conf=None)` | Ensure server; singleton; log args. |
 | `appName`, `master`, `version` | Plausible values; `version` from the session. |
-| `setLogLevel`, `addPyFile`, `setCheckpointDir`, ... | Logged no-ops via the catch-all. |
-| `_jsc`, `_jvm`, `_conf`, `hadoopConfiguration()` chains | `LogAny` objects, so `sc._jsc.hadoopConfiguration().set(k, v)` logs and works. |
+| `setLogLevel`, `addPyFile`, `setCheckpointDir` | Explicit no-ops: log `INFO`, never raise (not even in strict mode). Other unknown methods go through the catch-all. |
+| `_jsc`, `_jvm`, `_conf`, `hadoopConfiguration()` chains | Non-strict `LogAny` objects, so `sc._jsc.hadoopConfiguration().set(k, v)` logs `STUB` and works, also in strict mode. |
 | `parallelize`, `textFile`, `wholeTextFiles`, `emptyRDD`, `broadcast`, `accumulator` | Raise `GlueLocalUnsupported` with a clear message (RDDs do not exist in Spark Connect). Returning a stub here would only fail later and more confusingly. |
 | `stop()` | Stop the session. |
 
@@ -247,11 +247,11 @@ v2 `filter` / `map` requirements (spike S6):
 
 ### `awsglue.job.Job`
 
-`Job(glue_context)`, `init(name, args)` and `commit()` log and do nothing else. Bookmarks are a no-op.
+`Job(glue_context)`, `init(name, args)` and `commit()` log and do nothing else. `isInitialized()` returns `True` after `init` (logged `INFO`). None of these raise in strict mode. Bookmarks are a no-op.
 
 ### `awsgluedq.transforms.EvaluateDataQuality`
 
-`apply(frame, ruleset, publishing_options)`: log the ruleset name, return the frame unchanged. Glue Studio-generated scripts import this, so it must import cleanly.
+`apply(frame, ruleset, publishing_options)`: log the ruleset name, return the frame unchanged. `EvaluateDataQuality().process_rows(frame, ...)`: log `WARN`, return a `DynamicFrameCollection` whose `originalData` and `rowLevelOutcomes` are the input frame. Neither raises in strict mode. Glue Studio-generated scripts import this, so it must import cleanly.
 
 ## 10. Paths and catalog (`paths.py`)
 
@@ -287,7 +287,7 @@ Glue 6 jobs often run `spark.sql("MERGE INTO glue_catalog.db.tbl ...")`. Spike S
   ```
   so `glue_catalog.<db>.<tbl>` resolves. Skip this when the user brings their own server (`SPARK_REMOTE` set).
 - **Warehouse:** set `spark.sql.warehouse.dir` to the absolute form of `iceberg.warehouse` (default `./.prytt/warehouse`) on every session prytt builds. Iceberg CTAS / `saveAsTable` fail on a relative location, and Delta otherwise writes `./spark-warehouse` into cwd.
-- **Re-register each run:** the catalog is in memory, so table entries vanish with the server (and are not shared across sessions). Data files persist. On the first session, for each `<warehouse>/<db>/<tbl>` that holds Iceberg metadata, run `CREATE DATABASE IF NOT EXISTS glue_catalog.<db>` and `CREATE TABLE IF NOT EXISTS glue_catalog.<db>.<tbl> USING iceberg LOCATION '<abs path>'`. Log each as `MAP`.
+- **Re-register each run:** the catalog is in memory, so table entries vanish with the server (and are not shared across sessions). Data files persist. On the first session, for each `<warehouse>/<db>/<tbl>` that holds Iceberg metadata, run `CREATE DATABASE IF NOT EXISTS glue_catalog.<db>` and `CREATE TABLE IF NOT EXISTS glue_catalog.<db>.<tbl> USING iceberg LOCATION '<abs path>'`. Log each as `MAP`. Create each database with `LOCATION '<warehouse>/<db>'` (and recreate the built-in `default` that way), and add that `LOCATION` to a script's own `CREATE DATABASE glue_catalog.<db>` that has none: otherwise Sail (0.7.3) puts the tables flat in the warehouse as `<tbl>-<uuid>`, and the next run cannot tell their database (Sail's memory catalog has no default-location setting, so this is a comment- and quote-aware rewrite of a single statement; multi-statement strings and other explicit `LOCATION`s are sent unchanged with a `WARN`). Table dirs directly under the warehouse (default `sail` catalog tables) are not databases. Sail needs the existing path for a schema-less `CREATE TABLE ... LOCATION`. If the server has no `glue_catalog` (user's own `SAIL_CATALOG__LIST`), log `WARN` and skip. Sail reads an unknown `glue_catalog.x` as a nested namespace, so check `listCatalogs()`.
 - **Missing table:** `MERGE INTO` / `INSERT` on an unknown `glue_catalog` table fails with Sail's error. Users create it once (`CREATE TABLE glue_catalog.db.tbl ... USING iceberg`), after which re-registration picks it up. Seeding from config can come later.
 - The pytest plugin registers per session, so each test session sees the tables on disk.
 

@@ -6,3 +6,4 @@ __pycache__/
 .pytest_cache/
 spark-warehouse/
 dist/
+.claude/worktrees/

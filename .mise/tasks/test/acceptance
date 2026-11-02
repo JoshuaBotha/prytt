@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Run acceptance tests (scripts as subprocesses, real .pth path)"
+set -euo pipefail
+uv run pytest tests/acceptance "$@"

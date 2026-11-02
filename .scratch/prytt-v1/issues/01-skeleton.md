@@ -1,6 +1,6 @@
 # T1 skeleton: packaging, .pth, lazy config, logging, LogAny, strict mode
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none
 
 Spec: prytt-spec.md §5, §6 (bootstrap + import rules only; hooks themselves are T2), §9 'Shared catch-all', §11, §12, §13 (config/strict unit tests), §13 Non-functional (import-time regression test).

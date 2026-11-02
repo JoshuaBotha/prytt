@@ -1,6 +1,6 @@
 # T8 pytest plugin
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 02, 04
 
 Spec: §4 Test; §10 (plugin registers per session).

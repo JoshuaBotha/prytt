@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#MISE description="Fresh clone to ready for dev work (idempotent)"
+set -euo pipefail
+
+echo "==> Installing tools (python, uv)"
+mise install
+
+echo "==> Syncing dependencies (editable prytt + dev group)"
+uv sync
+
+echo "==> Checking prytt.pth is installed"
+site=$(uv run python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
+test -f "$site/prytt.pth" || { echo "prytt.pth missing from $site" >&2; exit 1; }
+
+echo "==> Warming Sail native library (first run can take ~30 s)"
+uv run python - <<'PY'
+from pyspark.sql import SparkSession
+
+# prytt's import hook starts its own Sail server (SPARK_REMOTE is unset by mise).
+SparkSession.builder.getOrCreate().range(1).collect()
+PY
+
+echo "Ready. Try: mise run test"

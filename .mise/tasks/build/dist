@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Build sdist and wheel into dist/"
+set -euo pipefail
+rm -rf dist
+uv build
+ls -l dist

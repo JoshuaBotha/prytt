@@ -1,6 +1,6 @@
 # T2 server.py + import hooks + SparkContext shim + builder hook
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 Spec: §6 (hooks table), §7, §8, §12 (first-line versions/address log), §13 Non-functional (clean exit).

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+#MISE description="Run unit and acceptance tests"
+#MISE depends=["test:unit", "test:acceptance"]
