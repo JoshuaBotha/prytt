@@ -166,3 +166,23 @@ def test_unknown_key_in_config_file_is_an_error_naming_the_file(tmp_path):
 
     with pytest.raises(ValueError, match=r"sail\.prot.*prytt\.toml"):
         config.load(env={}, cwd=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("env", "key"),
+    [
+        ({"PRYTT_S3_MODE": "cloud"}, "s3.mode"),
+        ({"PRYTT_CATALOG_ON_MISSING": "ignore"}, "catalog.on_missing"),
+    ],
+)
+def test_enum_values_are_checked_when_config_loads(tmp_path, env, key):
+    with pytest.raises(ValueError, match=rf"{key} must be one of"):
+        config.load(env=env, cwd=tmp_path)
+
+
+def test_enum_values_are_accepted_from_files(tmp_path):
+    (tmp_path / "prytt.toml").write_text('[s3]\nmode = "passthrough"\n[catalog]\non_missing = "empty"\n')
+
+    cfg = config.load(env={}, cwd=tmp_path)
+
+    assert (cfg.s3_mode, cfg.catalog_on_missing) == ("passthrough", "empty")

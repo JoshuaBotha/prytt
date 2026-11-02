@@ -17,7 +17,9 @@ Sources, highest first: ``PRYTT_*`` env vars, the nearest ``prytt.toml``
 searched upward from cwd), defaults. Keys use dotted names (``sail.port``);
 in TOML write them as tables (``[sail] port = 0``). Higher sources override
 per key, not per table. ``strict`` defaults to true when ``CI`` is truthy,
-but an explicit ``strict`` from any source wins.
+but an explicit ``strict`` from any source wins. ``s3.mode`` must be
+``local``/``passthrough`` and ``catalog.on_missing`` ``error``/``empty``;
+bad values (like bad booleans) raise ``ValueError`` when the config loads.
 """
 
 import os
@@ -57,15 +59,29 @@ def _upper(value) -> str:
     return str(value).strip().upper()
 
 
+S3_MODES = ("local", "passthrough")
+ON_MISSING = ("error", "empty")
+
+
+def _one_of(key: str, allowed: tuple):
+    def parse(value) -> str:
+        text = str(value)
+        if text not in allowed:
+            raise ValueError(f"prytt config: {key} must be one of {allowed}, got {value!r}")
+        return text
+
+    return parse
+
+
 # dotted key -> (Config field, PRYTT_* env var, parser)
 _KEYS = {
     "disable": ("disable", "PRYTT_DISABLE", _bool),
     "log_level": ("log_level", "PRYTT_LOG_LEVEL", _upper),
     "strict": ("strict", "PRYTT_STRICT", _bool),
     "sail.port": ("sail_port", "PRYTT_SAIL_PORT", int),
-    "s3.mode": ("s3_mode", "PRYTT_S3_MODE", str),
+    "s3.mode": ("s3_mode", "PRYTT_S3_MODE", _one_of("s3.mode", S3_MODES)),
     "s3.root": ("s3_root", "PRYTT_S3_ROOT", str),
-    "catalog.on_missing": ("catalog_on_missing", "PRYTT_CATALOG_ON_MISSING", str),
+    "catalog.on_missing": ("catalog_on_missing", "PRYTT_CATALOG_ON_MISSING", _one_of("catalog.on_missing", ON_MISSING)),
     "iceberg.warehouse": ("iceberg_warehouse", "PRYTT_ICEBERG_WAREHOUSE", str),
 }
 

@@ -22,8 +22,8 @@ Interface:
   ``LookupError``) whose message is the exact TOML to add. A bad entry (no
   ``path`` / ``format``, unknown keys, non-table ``options``) raises
   ``ValueError``. ``resolve_table`` never applies ``catalog.on_missing``:
-  readers check ``catalog_on_missing()`` (``"error"`` | ``"empty"``, anything
-  else is a ``ValueError``) and turn the miss into an empty frame; writers
+  readers check ``catalog_on_missing()`` (``"error"`` | ``"empty"``; config
+  rejects anything else when it loads) and turn the miss into an empty frame; writers
   always raise.
 - ``mapped_tables() -> {(database, table): CatalogTable}``: every mapped table.
 - ``view_name(database, table_name) -> str``: ``db_table`` (non-word chars
@@ -44,7 +44,6 @@ from prytt import config
 from prytt.stub import first_line, log
 
 _S3_SCHEMES = ("s3://", "s3a://", "s3n://")
-_MODES = ("local", "passthrough")
 _passthrough_checked_for = None  # the Config passthrough was last checked under
 
 
@@ -95,8 +94,6 @@ def map_path(uri: str, for_write: bool = False) -> str:
     if key is None:
         return uri
     cfg = config.get()
-    if cfg.s3_mode not in _MODES:
-        raise ValueError(f"prytt config: s3.mode must be one of {_MODES}, got {cfg.s3_mode!r}")
     if cfg.s3_mode == "passthrough":
         _check_passthrough(cfg)
         return uri
@@ -191,14 +188,8 @@ def register_temp_views(spark) -> None:
         log("MAP", f"catalog {database}.{table_name} -> temp view {view}")
 
 
-_ON_MISSING = ("error", "empty")
-
-
 def catalog_on_missing() -> str:
-    value = config.get().catalog_on_missing
-    if value not in _ON_MISSING:
-        raise ValueError(f"prytt config: catalog.on_missing must be one of {_ON_MISSING}, got {value!r}")
-    return value
+    return config.get().catalog_on_missing
 
 
 def resolve_table(database: str, table_name: str) -> CatalogTable:
