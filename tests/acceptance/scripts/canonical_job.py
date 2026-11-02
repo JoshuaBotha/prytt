@@ -7,10 +7,13 @@ from awsglue.job import Job
 
 args = getResolvedOptions(sys.argv, ["JOB_NAME", "source_path"])
 sc = SparkContext()
+sc.setLogLevel("WARN")
+sc._jsc.hadoopConfiguration().set("mapreduce.fileoutputcommitter.marksuccessfuljobs", "false")
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
+assert job.isInitialized()
 
 orders = glueContext.create_dynamic_frame.from_options(
     connection_type="s3",

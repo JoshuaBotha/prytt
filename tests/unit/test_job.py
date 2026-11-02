@@ -57,13 +57,35 @@ def test_args_default_to_empty(capsys):
     assert "Job.init('j')" in capsys.readouterr().err
 
 
+def test_is_initialized_is_true_only_after_init(capsys):
+    from awsglue.job import Job
+
+    job = Job(object())
+    assert job.isInitialized() is False
+    job.init("my-job", {})
+    capsys.readouterr()
+
+    assert job.isInitialized() is True
+    assert capsys.readouterr().err == "[prytt] INFO Job.isInitialized() -> True\n"
+
+
+def test_is_initialized_works_in_strict_mode(monkeypatch):
+    from awsglue.job import Job
+
+    strict(monkeypatch)
+    job = Job(object())
+    job.init("my-job", {})
+
+    assert job.isInitialized() is True
+
+
 def test_other_methods_hit_catch_all(capsys):
     from awsglue.job import Job
 
     job = Job(object())
 
-    assert job.isInitialized() is job
-    assert capsys.readouterr().err == "[prytt] STUB Job.isInitialized()\n"
+    assert job.id() is job
+    assert capsys.readouterr().err == "[prytt] STUB Job.id()\n"
 
 
 def test_other_methods_raise_in_strict_mode(monkeypatch):
@@ -72,4 +94,4 @@ def test_other_methods_raise_in_strict_mode(monkeypatch):
     strict(monkeypatch)
 
     with pytest.raises(GlueLocalUnsupported):
-        Job(object()).isInitialized()
+        Job(object()).id()

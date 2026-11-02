@@ -122,6 +122,20 @@ def test_glue_studio_job_reads_catalog_runs_sql_and_skips_data_quality(project):
     assert "WARN EvaluateDataQuality skipped: ruleset 'orders_dq' not evaluated locally" in proc.stderr
 
 
+@pytest.mark.parametrize(
+    "script, args",
+    [
+        ("canonical_job.py", ["--JOB_NAME", "t", "--source_path", "s3://raw/orders/"]),
+        ("glue_studio_job.py", ["--JOB_NAME", "studio"]),
+    ],
+)
+def test_boilerplate_jobs_pass_in_strict_mode(project, script, args):
+    proc = run(project, script, *args, PRYTT_STRICT="1")
+
+    assert proc.returncode == 0, proc.stderr
+    assert "GlueLocalUnsupported" not in proc.stderr
+
+
 def test_spark_only_job_gets_a_sail_session_from_the_builder(project):
     proc = run(project, "spark_only_job.py")
 

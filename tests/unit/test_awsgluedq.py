@@ -46,15 +46,35 @@ def test_apply_without_evaluation_context_names_the_ruleset_text(capsys):
     )
 
 
-def test_process_rows_goes_through_catch_all(capsys):
+def test_process_rows_returns_a_collection_holding_the_input_frame(capsys):
     from awsgluedq.transforms import EvaluateDataQuality
 
-    dq = EvaluateDataQuality()
+    frame = object()
 
-    assert dq.process_rows(frame="f", ruleset="r") is dq
-    assert capsys.readouterr().err == (
-        "[prytt] STUB EvaluateDataQuality.process_rows(frame='f', ruleset='r')\n"
+    result = EvaluateDataQuality().process_rows(
+        frame=frame,
+        ruleset=RULESET,
+        publishing_options={"dataQualityEvaluationContext": "dq_rows"},
+        additional_options={"performanceTuning.caching": "CACHE_NOTHING"},
     )
+
+    assert result["originalData"] is frame
+    assert result["rowLevelOutcomes"] is frame
+    assert result.select("originalData") is frame
+    assert capsys.readouterr().err == (
+        "[prytt] WARN EvaluateDataQuality.process_rows skipped: ruleset "
+        "'dq_rows' not evaluated locally\n"
+    )
+
+
+def test_process_rows_does_not_raise_in_strict_mode(monkeypatch):
+    from awsgluedq.transforms import EvaluateDataQuality
+
+    monkeypatch.setenv("PRYTT_STRICT", "1")
+    config.reset()
+    frame = object()
+
+    assert EvaluateDataQuality().process_rows(frame=frame, ruleset=RULESET)["originalData"] is frame
 
 
 def test_import_does_not_pull_in_pyspark():

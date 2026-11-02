@@ -135,3 +135,17 @@ def test_output_is_not_duplicated_through_root_logger(capsys):
         logging.getLogger().removeHandler(root_handler)
 
     assert capsys.readouterr().err == "[prytt] INFO once\n"
+
+
+def test_a_non_raising_log_any_logs_even_in_strict_mode(monkeypatch, capsys):
+    class Jvm(LogAny):
+        raises_in_strict = False
+
+    set_env(monkeypatch, PRYTT_STRICT="1")
+    jvm = Jvm()
+
+    assert jvm.hadoopConfiguration().set("k", "v") is jvm
+    assert capsys.readouterr().err.splitlines() == [
+        "[prytt] STUB Jvm.hadoopConfiguration()",
+        "[prytt] STUB Jvm.set('k', 'v')",
+    ]

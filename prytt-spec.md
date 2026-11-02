@@ -168,8 +168,8 @@ Hook firing order seen in spike S4: `pyspark.sql.session` first (pyspark's `__in
 |---|---|
 | `SparkContext(...)`, `SparkContext.getOrCreate(conf=None)` | Ensure server; singleton; log args. |
 | `appName`, `master`, `version` | Plausible values; `version` from the session. |
-| `setLogLevel`, `addPyFile`, `setCheckpointDir`, ... | Logged no-ops via the catch-all. |
-| `_jsc`, `_jvm`, `_conf`, `hadoopConfiguration()` chains | `LogAny` objects, so `sc._jsc.hadoopConfiguration().set(k, v)` logs and works. |
+| `setLogLevel`, `addPyFile`, `setCheckpointDir` | Explicit no-ops: log `INFO`, never raise (not even in strict mode). Other unknown methods go through the catch-all. |
+| `_jsc`, `_jvm`, `_conf`, `hadoopConfiguration()` chains | Non-strict `LogAny` objects, so `sc._jsc.hadoopConfiguration().set(k, v)` logs `STUB` and works, also in strict mode. |
 | `parallelize`, `textFile`, `wholeTextFiles`, `emptyRDD`, `broadcast`, `accumulator` | Raise `GlueLocalUnsupported` with a clear message (RDDs do not exist in Spark Connect). Returning a stub here would only fail later and more confusingly. |
 | `stop()` | Stop the session. |
 
@@ -247,11 +247,11 @@ v2 `filter` / `map` requirements (spike S6):
 
 ### `awsglue.job.Job`
 
-`Job(glue_context)`, `init(name, args)` and `commit()` log and do nothing else. Bookmarks are a no-op.
+`Job(glue_context)`, `init(name, args)` and `commit()` log and do nothing else. `isInitialized()` returns `True` after `init` (logged `INFO`). None of these raise in strict mode. Bookmarks are a no-op.
 
 ### `awsgluedq.transforms.EvaluateDataQuality`
 
-`apply(frame, ruleset, publishing_options)`: log the ruleset name, return the frame unchanged. Glue Studio-generated scripts import this, so it must import cleanly.
+`apply(frame, ruleset, publishing_options)`: log the ruleset name, return the frame unchanged. `EvaluateDataQuality().process_rows(frame, ...)`: log `WARN`, return a `DynamicFrameCollection` whose `originalData` and `rowLevelOutcomes` are the input frame. Neither raises in strict mode. Glue Studio-generated scripts import this, so it must import cleanly.
 
 ## 10. Paths and catalog (`paths.py`)
 

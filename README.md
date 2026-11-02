@@ -206,11 +206,13 @@ Strict mode is on when `CI` is truthy, unless `strict` is set explicitly:
 pass-throughs (`Filter`, `Map`, `Relationalize`, `EvaluateDataQuality.apply`,
 ...) don't raise in strict mode.
 
-Some common Glue boilerplate goes through that catch-all, so it **raises in
-strict mode**: `sc.setLogLevel(...)`,
-`sc._jsc.hadoopConfiguration().set(...)`, `job.isInitialized()` and
-`EvaluateDataQuality().process_rows(...)`. Set `PRYTT_STRICT=0` for jobs that
-use them.
+Common Glue boilerplate never raises, strict or not: `sc.setLogLevel(...)`,
+`sc.addPyFile(...)` and `sc.setCheckpointDir(...)` log `INFO` and do
+nothing; `sc._jsc` / `sc._jvm` / `sc._conf` call chains (such as
+`sc._jsc.hadoopConfiguration().set(...)`) log `STUB` and keep going;
+`job.isInitialized()` is `True` after `job.init(...)`; and
+`EvaluateDataQuality().process_rows(...)` logs `WARN` and returns a collection
+whose `originalData` and `rowLevelOutcomes` are the input frame.
 
 ## Turn it off
 

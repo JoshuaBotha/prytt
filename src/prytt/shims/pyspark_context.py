@@ -6,10 +6,12 @@ Served as ``pyspark.context`` by ``prytt._hooks``; also ``pyspark.SparkContext``
   server, return the process-wide singleton, log the args.
 - ``appName``, ``master``, ``version`` (from the session), ``sparkSession``
   (the ``SparkSession``, built on demand; prytt extra used by ``GlueContext``).
-- ``_jsc``, ``_jvm``, ``_conf``: ``LogAny`` objects, so Java-style chains such
-  as ``sc._jsc.hadoopConfiguration().set(k, v)`` log and keep going.
-- Any other method (``setLogLevel``, ``addPyFile``, ...): catch-all logged
-  no-op (raises in strict mode).
+- ``_jsc``, ``_jvm``, ``_conf``: ``LogAny`` objects that never raise (not
+  even in strict mode), so Java-style chains such as
+  ``sc._jsc.hadoopConfiguration().set(k, v)`` log ``STUB`` and keep going.
+- ``setLogLevel``, ``addPyFile``, ``setCheckpointDir``: documented no-ops; log
+  ``INFO`` and return ``None``, also in strict mode.
+- Any other method: catch-all logged no-op (raises in strict mode).
 - RDD entry points (``parallelize``, ``textFile``, ...): raise
   ``GlueLocalUnsupported``.
 - ``stop()``: stop the session and drop the singleton.
@@ -37,9 +39,20 @@ _RDD_METHODS = (
 )
 
 
+_NO_OPS = ("setLogLevel", "addPyFile", "setCheckpointDir")
+
+
 def _Java(label):
     """Stand-in for a py4j object named ``label``; any call logs and returns itself."""
-    return type(label, (LogAny,), {"__module__": __name__})()
+    return type(label, (LogAny,), {"__module__": __name__, "raises_in_strict": False})()
+
+
+def _no_op(name):
+    def method(self, *args, **kwargs):
+        log("INFO", f"SparkContext.{name}({_args_text(args, kwargs)}), no-op locally")
+
+    method.__name__ = name
+    return method
 
 
 def _unsupported(name):
@@ -107,4 +120,6 @@ class SparkContext(LogAny):
 
 for _name in _RDD_METHODS:
     setattr(SparkContext, _name, _unsupported(_name))
+for _name in _NO_OPS:
+    setattr(SparkContext, _name, _no_op(_name))
 del _name

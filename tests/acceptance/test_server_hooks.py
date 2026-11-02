@@ -88,18 +88,23 @@ def test_rdd_methods_raise_glue_local_unsupported():
     assert out.stdout.strip() == "ok"
 
 
-def test_java_chains_and_unknown_methods_log_and_continue():
+def test_documented_no_ops_and_java_chains_log_and_continue_even_when_strict():
     out = ok(
         """
         from pyspark.context import SparkContext
         sc = SparkContext()
         sc._jsc.hadoopConfiguration().set("fs.s3a.endpoint", "x")
-        sc.setLogLevel("WARN")
+        sc._conf.get("spark.app.name")
+        assert sc.setLogLevel("WARN") is None
+        assert sc.addPyFile("deps.zip") is None
+        assert sc.setCheckpointDir("/tmp/ckpt") is None
         print(sc.appName, sc.master, sc.version)
         """,
-        PRYTT_STRICT="0",
+        PRYTT_STRICT="1",
     )
-    assert "STUB SparkContext.setLogLevel('WARN')" in out.stderr
+    assert "INFO SparkContext.setLogLevel('WARN'), no-op locally" in out.stderr
+    assert "INFO SparkContext.addPyFile('deps.zip'), no-op locally" in out.stderr
+    assert "INFO SparkContext.setCheckpointDir('/tmp/ckpt'), no-op locally" in out.stderr
     assert "STUB JavaSparkContext.hadoopConfiguration()" in out.stderr
     app, master, version = out.stdout.split()
     assert version.startswith("4.")
@@ -109,7 +114,7 @@ def test_strict_mode_raises_on_catch_all_hit():
     proc = run(
         """
         from pyspark.context import SparkContext
-        SparkContext().setLogLevel("WARN")
+        SparkContext().setJobGroup("g", "d")
         """,
         PRYTT_STRICT="1",
     )

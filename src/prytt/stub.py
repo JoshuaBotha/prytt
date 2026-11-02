@@ -7,11 +7,16 @@ Interface:
   catalog rewrite), ``WARN`` (known gap, data passed through), ``INFO``
   (server start, versions). ``WARN`` logs at WARNING, the rest at INFO;
   ``log_level`` from config filters them.
-- ``stub_log(owner, name, args, kwargs)``: log ``STUB Owner.name(args)``, or in
-  strict mode raise ``GlueLocalUnsupported`` instead.
+- ``stub_log(owner, name, args, kwargs, strict=True)``: log
+  ``STUB Owner.name(args)``, or in strict mode raise ``GlueLocalUnsupported``
+  instead. ``strict=False`` always logs (never raises).
 - ``LogAny``: base class. Calling any method a subclass does not define goes
   through ``stub_log`` and returns ``self``, so chains keep going. Dunder
-  lookups are not intercepted (they raise ``AttributeError`` as usual).
+  lookups are not intercepted (they raise ``AttributeError`` as usual). A
+  subclass that sets ``raises_in_strict = False`` never raises (for stand-ins
+  whose every call is a known no-op, e.g. ``sc._jsc`` chains).
+- ``first_line(exc) -> str``: the first line of an exception's message (or
+  its type name), for one-line ``WARN`` logs.
 - ``GlueLocalUnsupported``: raised for calls prytt cannot fake (strict-mode
   gaps, RDD APIs). Subclass of ``NotImplementedError``.
 - ``get_logger()``: the configured ``prytt`` logger, for anything else.
@@ -78,9 +83,9 @@ def _call_text(owner: str, name: str, args, kwargs) -> str:
     return f"{owner}.{name}({', '.join(parts)})"
 
 
-def stub_log(owner: str, name: str, args=(), kwargs=None) -> None:
+def stub_log(owner: str, name: str, args=(), kwargs=None, strict: bool = True) -> None:
     call = _call_text(owner, name, args, kwargs or {})
-    if config.get().strict:
+    if strict and config.get().strict:
         raise GlueLocalUnsupported(
             f"{call} is not implemented in prytt (strict mode; "
             "set PRYTT_STRICT=0 to log and continue)"
@@ -88,13 +93,19 @@ def stub_log(owner: str, name: str, args=(), kwargs=None) -> None:
     log("STUB", call)
 
 
+def first_line(exc) -> str:
+    return (str(exc).strip().splitlines() or [type(exc).__name__])[0]
+
+
 class LogAny:
+    raises_in_strict = True
+
     def __getattr__(self, name):
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
 
         def _noop(*args, **kwargs):
-            stub_log(type(self).__name__, name, args, kwargs)
+            stub_log(type(self).__name__, name, args, kwargs, strict=self.raises_in_strict)
             return self
 
         return _noop
