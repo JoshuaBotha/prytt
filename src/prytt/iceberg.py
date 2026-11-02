@@ -36,7 +36,7 @@ import re
 from pathlib import Path
 
 from prytt import config
-from prytt.stub import log
+from prytt.stub import first_line, log
 
 CATALOG = "glue_catalog"
 SAIL_CATALOG_LIST = (
@@ -71,8 +71,12 @@ def _is_iceberg_table(path: Path) -> bool:
     return metadata.is_dir() and any(metadata.glob("*.metadata.json"))
 
 
-def _is_table(path: Path) -> bool:
-    """Iceberg or Delta table dir (also Sail's flat ``<tbl>-<uuid>`` tables)."""
+def _is_table_not_database(path: Path) -> bool:
+    """True if a dir directly under the warehouse is a table, so not a database.
+
+    Iceberg or Delta table dirs of the default ``sail`` catalog, and Sail's
+    flat ``<tbl>-<uuid>`` tables of a database created without a location.
+    """
     return (path / "metadata").is_dir() or (path / "_delta_log").is_dir() or _UUID_SUFFIX.search(path.name) is not None
 
 
@@ -80,10 +84,6 @@ def _subdirs(path: Path) -> list:
     if not path.is_dir():
         return []
     return sorted(p for p in path.iterdir() if p.is_dir() and not p.name.startswith((".", "_")))
-
-
-def _first_line(exc) -> str:
-    return (str(exc).strip().splitlines() or [type(exc).__name__])[0]
 
 
 def _create_database(spark, warehouse: Path, name: str) -> None:
@@ -204,17 +204,17 @@ def setup_session(spark) -> None:
         spark.sql(f"DROP DATABASE IF EXISTS {CATALOG}.`default`")
         _create_database(spark, warehouse, "default")
     except Exception as exc:
-        log("WARN", f"{CATALOG}.default keeps no location (its tables land flat): {_first_line(exc)}")
+        log("WARN", f"{CATALOG}.default keeps no location (its tables land flat): {first_line(exc)}")
     _wrap_sql(spark, warehouse)
 
     for db_dir in _subdirs(warehouse):
-        if _is_table(db_dir):  # a table of the ``sail`` catalog, not a database
+        if _is_table_not_database(db_dir):  # a table of the ``sail`` catalog, not a database
             continue
         db = db_dir.name
         try:
             _create_database(spark, warehouse, db)
         except Exception as exc:
-            log("WARN", f"{CATALOG} database {db} skipped: {_first_line(exc)}")
+            log("WARN", f"{CATALOG} database {db} skipped: {first_line(exc)}")
             continue
         for table_dir in _subdirs(db_dir):
             if not _is_iceberg_table(table_dir):
@@ -226,6 +226,6 @@ def setup_session(spark) -> None:
                     f"USING iceberg LOCATION {_literal(table_dir)}"
                 )
             except Exception as exc:
-                log("WARN", f"{name} skipped: {_first_line(exc)}")
+                log("WARN", f"{name} skipped: {first_line(exc)}")
                 continue
             log("MAP", f"{name} -> {table_dir}")
