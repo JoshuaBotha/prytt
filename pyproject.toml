@@ -1,8 +1,29 @@
 [project]
 name = "prytt"
 version = "0.1.0"
+description = "Drop-in awsglue + PySpark shim: run unmodified AWS Glue 6 job scripts locally on Sail."
 requires-python = ">=3.12"
 dependencies = [
     "pysail>=0.7.3",
     "pyspark-client>=4.1,<4.2",
 ]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/prytt", "src/awsglue", "src/awsgluedq"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# Lands at the site-packages root, so it runs at every interpreter start.
+"prytt.pth" = "prytt.pth"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "prytt.pth", "tests", "README.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
