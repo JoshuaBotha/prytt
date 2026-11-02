@@ -21,8 +21,9 @@ Extension seam for later tickets (keep it this small):
 - ``on_before_start(fn)``: ``fn()`` runs just before Sail starts, after
   ``RUST_LOG`` is set. Use it to set Sail env such as ``SAIL_CATALOG__LIST`` /
   ``SAIL_CATALOG__DEFAULT_CATALOG`` (T10). Not called when ``SPARK_REMOTE``
-  points at an external server. Register at import time of your module; a
-  callback added after the server started never runs.
+  points at an external server. Register in
+  ``prytt.shims.pyspark_hooks.register_session_setup`` (``ensure_running``
+  calls it first); a callback added after the server started never runs.
 - ``on_new_session(fn)``: ``fn(spark)`` runs once per new ``SparkSession``
   (by ``session_id``), right after ``SparkSession.builder.getOrCreate()`` /
   ``.create()`` builds it and before the caller gets it. Use it for temp views
@@ -80,6 +81,9 @@ def _versions() -> str:
 
 def ensure_running() -> str:
     global _server, _our_remote, _atexit_registered, _external_logged
+    from prytt.shims.pyspark_hooks import register_session_setup
+
+    register_session_setup()  # whichever start path got here first (T10)
     with _lock:
         if _server is not None:
             return os.environ.setdefault("SPARK_REMOTE", _our_remote)
