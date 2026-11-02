@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
-#MISE description="Tag and publish a GitHub Release for the pyproject version, unless that tag already exists"
+#MISE description="Tag and publish a GitHub Release for the pyproject version, unless it is already published"
 set -euo pipefail
 
 version=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
 tag="v$version"
 
-if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
-  echo "Tag $tag already exists, nothing to release"
+# Skip only when a published release exists. A tag with no release (or a draft
+# left by a failed upload) is retried.
+state=$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null || echo missing)
+if [ "$state" = "false" ]; then
+  echo "Release $tag already published, nothing to do"
   exit 0
+fi
+if [ "$state" = "true" ]; then
+  echo "Removing leftover draft release $tag"
+  gh release delete "$tag" --yes
 fi
 
 mise run ci
-# --target makes gh create the tag at this commit, so no tag push is needed
+# --target creates the tag at this commit if it doesn't exist; an existing tag is reused
 gh release create "$tag" dist/* --target "$(git rev-parse HEAD)" --generate-notes
 echo "Released $tag"

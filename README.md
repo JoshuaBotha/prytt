@@ -320,5 +320,7 @@ uv run pytest      # SPARK_REMOTE must be unset
 
 Bump `version` in `pyproject.toml` and merge to `main`. The Release workflow
 runs `mise run release:publish`, which tags `vX.Y.Z` and publishes a GitHub
-Release with the wheel and sdist. If that tag already exists it does nothing,
-so merging unrelated changes never re-releases.
+Release with the wheel and sdist. If that version is already published it
+does nothing, so merging unrelated changes never re-releases. If a release
+run fails, fix the cause and use "Run workflow" on the Release workflow (on
+`main`); a tag without a published release, or a leftover draft, is retried.
