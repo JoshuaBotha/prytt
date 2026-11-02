@@ -72,7 +72,7 @@ python jobs/bronze_to_silver.py --JOB_NAME local --source_path s3://raw-bucket/o
 On first Spark use, an in-process Sail server starts on an ephemeral port. `s3://raw-bucket/orders/` is read from `./.prytt/s3/raw-bucket/orders/`. Stubbed calls appear in the log, e.g.:
 
 ```
-[prytt] STUB Job.commit()
+[prytt] INFO Job.commit('local')
 [prytt] MAP  s3://raw-bucket/orders/ -> .prytt/s3/raw-bucket/orders/
 [prytt] WARN Filter.apply: not implemented, frame passed through unchanged
 ```
@@ -154,7 +154,7 @@ Hook firing order seen in spike S4: `pyspark.sql.session` first (pyspark's `__in
 - Otherwise start Sail **in-process** in the background on an ephemeral port: `SparkConnectServer(ip="127.0.0.1", port=0).start(background=True)` (returns in ~20 ms). Read the bound address from `server.listening_address` (a `(host, port)` tuple; `None` once stopped) and set `os.environ["SPARK_REMOTE"] = "sc://127.0.0.1:<port>"` before any session is built.
 - Set Sail's own environment before `start()`: `SAIL_CATALOG__LIST` / `SAIL_CATALOG__DEFAULT_CATALOG` for `glue_catalog` (section 10). Sail reads it at start.
 - Register `atexit` to stop the session and then the server. Spike S3: the process exits cleanly even without `stop()`, but the explicit stop gives ordered shutdown and logs.
-- Sail logs to stderr at INFO by default. Quiet it (e.g. `RUST_LOG=warn` unless already set) and let `log_level=DEBUG` restore it.
+- Sail logs to stderr at INFO by default. prytt sets `RUST_LOG=error` unless `RUST_LOG` is already set, and `log_level=DEBUG` leaves Sail at its default. `error` rather than `warn` because Sail logs benign warnings on every normal shutdown, which would add noise to every run.
 - Subprocess mode (`sail spark server --port <free port>`) is not needed (spike S3). Keep it only as a documented escape hatch, not built in v1.
 - Config can pin the port (`sail.port`) for debugging with an external client.
 

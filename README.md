@@ -232,10 +232,12 @@ prytt completely, uninstall it.
   `select_fields`, `drop_fields`, `rename_field`, `join`, `resolveChoice`
   `cast:` specs, ...), the transforms `ApplyMapping`, `SelectFields`,
   `DropFields`, `RenameField`, `Join`, `DropNullFields`, `ResolveChoice`,
-  `SelectFromCollection`, and `Job.init` / `Job.commit` (bookmarks are off).
+  `SelectFromCollection`, and `Job.init` / `Job.commit` / `Job.isInitialized`
+  (bookmarks are off).
 - **Pass-through with `WARN`:** `Filter`, `Map`, `Relationalize`, `Unbox`,
   `UnnestFrame`, `SplitFields`, `SplitRows`, `Spigot`, `ErrorsAsDynamicFrame`,
-  `EvaluateDataQuality.apply` (no rules run).
+  `EvaluateDataQuality.apply` and `EvaluateDataQuality().process_rows` (no
+  rules run).
 - **Not supported (raise `GlueLocalUnsupported`):** RDD APIs
   (`sc.parallelize`, `sc.textFile`, ...), non-S3 connection types (JDBC,
   DynamoDB, Kafka, ...) and ORC (Sail has no ORC reader).
@@ -245,7 +247,57 @@ prytt completely, uninstall it.
 
 ## Iceberg (`glue_catalog`)
 
-_To be filled in by T10._
+Glue 6 jobs that use Iceberg through the `glue_catalog` Spark catalog run
+unchanged. These work against `glue_catalog.<db>.<tbl>`:
+
+- `CREATE TABLE ... USING iceberg`
+- `INSERT INTO`
+- `MERGE INTO`
+- `CREATE TABLE ... AS SELECT` (CTAS)
+- `df.write.saveAsTable(...)` and `df.writeTo(...).append()`
+
+```python
+spark.sql("CREATE DATABASE IF NOT EXISTS glue_catalog.sales")
+spark.sql("CREATE TABLE IF NOT EXISTS glue_catalog.sales.orders (id bigint, amount double) USING iceberg")
+spark.sql("MERGE INTO glue_catalog.sales.orders t USING updates u ON t.id = u.id "
+          "WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *")
+```
+
+**Where the data lives.** Tables are stored under `iceberg.warehouse`
+(`PRYTT_ICEBERG_WAREHOUSE`, default `./.prytt/warehouse`, made absolute) as
+`<warehouse>/<db>/<tbl>`. prytt sets `spark.sql.warehouse.dir` to that path on
+every session, and adds `LOCATION '<warehouse>/<db>'` to a script's
+`CREATE DATABASE glue_catalog.<db>` that has none.
+
+**Each run.** Sail's catalog lives in memory, so it is empty when a new
+server or session starts. On every new session prytt scans the warehouse and
+re-registers each database and each Iceberg table it finds, logging one
+`MAP` line per table:
+
+```
+[prytt] MAP  glue_catalog.sales.orders -> /path/to/project/.prytt/warehouse/sales/orders
+```
+
+**Create once.** `MERGE INTO` or `INSERT` on a table that doesn't exist yet
+fails with Sail's error. Run `CREATE DATABASE` and `CREATE TABLE ... USING
+iceberg` once (or keep the `IF NOT EXISTS` forms in the job); later runs pick
+the table up from disk.
+
+**Your own catalog list.** If you set `SAIL_CATALOG__LIST` yourself, prytt
+keeps it. If it has no `glue_catalog`, prytt logs a `WARN` and doesn't
+register any tables.
+
+Limits:
+
+- `LOCATION 's3://...'` inside SQL is not mapped to a local path (only
+  `GlueContext` readers/writers and catalog config go through `s3.root`).
+- A database or table with an explicit `LOCATION` outside
+  `<warehouse>/<db>/<tbl>` works in that run but is not re-registered in the
+  next one. prytt logs a `WARN` when a script's `CREATE DATABASE` sets its
+  own location, or when it can't add one (for example, several statements in
+  one `spark.sql` string).
+- With an external server (`SPARK_REMOTE` set), prytt doesn't set Sail's
+  catalog environment. That server needs its own `glue_catalog`.
 
 ## Developing prytt
 
