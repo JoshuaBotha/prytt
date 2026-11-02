@@ -2,5 +2,9 @@
 python = "3.13"
 uv = "latest"
 
-# No SPARK_REMOTE here: prytt starts an in-process Sail server when it is unset.
-# To use your own server instead, export SPARK_REMOTE=sc://localhost:50051 in your shell.
+[env]
+# Unset, never set: with it unset prytt starts its own in-process Sail server.
+# Setting it makes prytt connect to that address instead. `false` unsets it for
+# every `mise run` task (and CI), even if your shell exports one. To use your own
+# server, run the script outside mise.
+SPARK_REMOTE = false

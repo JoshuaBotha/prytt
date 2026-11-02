@@ -23,9 +23,20 @@ Work test-first. Not a git repo yet: run `git init` before starting T1 (ask Josh
 ## Environment
 
 - `mise.toml`: Python 3.13, uv. `.venv` is Python 3.13 with `pysail` 0.7.3, `pyspark-client` 4.1.4 (`uv sync`).
-- `SPARK_REMOTE` must be **unset** for prytt to start its own Sail server. Do not add it back to `mise.toml`.
+- `SPARK_REMOTE` must be **unset** for prytt to start its own Sail server. Never give it a value in `mise.toml`; `[env] SPARK_REMOTE = false` unsets it for every `mise run` task.
 - `pyproject.toml` has no `[build-system]` yet, so `uv sync` installs deps only. T1 adds it; after that, `uv sync` installs prytt itself (editable), which puts `prytt.pth` in site-packages.
 - Acceptance tests run scripts as subprocesses so the `.pth` path is exercised for real.
+
+## mise
+
+mise is the single entry point for tooling, tasks and env vars, so a task runs the same locally and in CI.
+
+- **Tasks are bash scripts** in `.mise/tasks/`, not inline TOML. Start each with `#!/usr/bin/env bash`, a `#MISE description="..."` line and `set -euo pipefail`; `chmod +x`.
+- **Organise with folders**: `.mise/tasks/test/unit` is `mise run test:unit`; `test/_default` is plain `mise run test`.
+- **Workflows call tasks** (`mise run ci`), they don't inline logic. CI installs tools with `jdx/mise-action`. If a workflow step is more than a one-liner, make it a task.
+- **Env vars** go in `mise.toml` `[env]` (or `#MISE env=` on one task) when they apply to the project.
+- Fresh clone: `mise run setup:dev`. Everything CI runs, with `CI=true`: `mise run ci`.
+- Tasks: `setup:dev`, `test`, `test:unit`, `test:acceptance`, `build:dist`, `build:check-wheel`, `release:check-tag`, `ci`.
 
 ## Gotchas from the spikes (don't relearn these)
 

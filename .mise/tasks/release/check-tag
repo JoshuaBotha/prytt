@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#MISE description="Fail unless the git tag (vX.Y.Z) matches the version in pyproject.toml"
+set -euo pipefail
+
+tag=${GITHUB_REF_NAME:-$(git describe --tags --exact-match)}
+version=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+
+if [ "$tag" != "v$version" ]; then
+  echo "Tag $tag does not match pyproject version $version (expected v$version)" >&2
+  exit 1
+fi
+echo "Tag $tag matches version $version"
