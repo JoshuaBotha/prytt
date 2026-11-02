@@ -162,8 +162,3 @@ def test_from_catalog_goes_through_the_catalog_seam(glue_context, monkeypatch, s
 
     assert seen == [("raw_db", "orders")]
     assert rows(dyf.toDF(), "id") == [(1,)]
-
-
-def test_from_catalog_without_mapping_is_unsupported_for_now(glue_context):
-    with pytest.raises(GlueLocalUnsupported, match="raw_db.orders"):
-        glue_context.create_dynamic_frame.from_catalog(database="raw_db", table_name="orders")

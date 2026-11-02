@@ -24,7 +24,9 @@ Interface:
 - ``from_catalog`` calls ``prytt.paths.resolve_table(database, table_name)``
   (the T5 seam) and then reads/writes like ``from_options`` with the table's
   path, format and options; ``additional_options`` are merged over the
-  table's options.
+  table's options. An unmapped table raises ``paths.CatalogTableNotFound``,
+  except on read with ``catalog.on_missing = "empty"``: ``WARN`` and an
+  empty frame (no columns).
 - ``get_logger()``: a ``logging.Logger`` (``prytt.glue``) with ``info`` /
   ``warn`` / ``error``.
 - Any other attribute: delegated to the ``SparkSession`` if it has it
@@ -126,7 +128,16 @@ class _Reader(LogAny):
         **kwargs,
     ):
         name = kwargs.pop("name_space", None) or database
-        table = paths.resolve_table(name, table_name)
+        try:
+            table = paths.resolve_table(name, table_name)
+        except paths.CatalogTableNotFound as missing:
+            if paths.catalog_on_missing() != "empty":
+                raise
+            log("WARN", f"catalog table {name}.{table_name} is not mapped; reading an empty frame")
+            from pyspark.sql.types import StructType
+
+            df = self._ctx.spark_session.createDataFrame([], StructType([]))
+            return self._result(df, transformation_ctx or missing.table_name)
         options = {**(table.options or {}), **(additional_options or {})}
         df = read_df(self._ctx.spark_session, [table.path], table.format, options)
         return self._result(df, transformation_ctx)

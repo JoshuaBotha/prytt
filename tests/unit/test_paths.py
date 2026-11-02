@@ -114,3 +114,42 @@ def test_unknown_s3_mode_is_rejected(monkeypatch):
 
     with pytest.raises(ValueError, match="s3.mode"):
         paths.map_path("s3://b/k")
+
+
+def write_prytt_toml(tmp_path, text):
+    (tmp_path / "prytt.toml").write_text(text)
+    config.reset()
+
+
+def test_mapped_catalog_table_resolves_to_its_path_format_and_options(tmp_path):
+    write_prytt_toml(
+        tmp_path,
+        """
+[catalog."raw_db.orders"]
+path = "s3://raw-bucket/orders/"
+format = "json"
+options = { multiLine = true }
+""",
+    )
+
+    table = paths.resolve_table("raw_db", "orders")
+
+    assert table == paths.CatalogTable("s3://raw-bucket/orders/", "json", {"multiLine": True})
+
+
+def test_unmapped_catalog_table_error_shows_the_toml_to_add():
+    with pytest.raises(paths.CatalogTableNotFound) as info:
+        paths.resolve_table("raw_db", "orders")
+
+    message = str(info.value)
+    assert '[tool.prytt.catalog."raw_db.orders"]' in message
+    assert 'path = "s3://' in message
+    assert 'format = "' in message
+    assert isinstance(info.value, LookupError)
+
+
+def test_catalog_entry_without_path_or_format_is_a_config_error(tmp_path):
+    write_prytt_toml(tmp_path, '[catalog."raw_db.orders"]\nformat = "json"\n')
+
+    with pytest.raises(ValueError, match=r"raw_db\.orders.*path"):
+        paths.resolve_table("raw_db", "orders")

@@ -3,7 +3,9 @@
 - ``on_pyspark(module)``: set ``pyspark.SparkContext`` to the shim.
 - ``on_session(module)``: wrap ``SparkSession.Builder.getOrCreate`` / ``create``
   so they call ``server.ensure_running()`` first and
-  ``server.session_built(spark)`` after.
+  ``server.session_built(spark)`` after. Also registers the session-setup
+  callbacks (``paths.register_temp_views``), so they apply to spark-only
+  scripts that never import ``awsglue``.
 """
 
 import functools
@@ -33,6 +35,9 @@ def _wrap(build):
 
 
 def on_session(module):
+    from prytt import paths, server
+
+    server.on_new_session(paths.register_temp_views)  # catalog tables as db_table views (T5)
     builder = module.SparkSession.Builder
     for name in ("getOrCreate", "create"):
         if hasattr(builder, name):

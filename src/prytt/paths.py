@@ -16,16 +16,31 @@ Interface:
 - ``CatalogTable(path, format, options)``: what a catalog lookup returns.
   ``path`` is the configured (unmapped) location; callers run it through
   ``map_path``. ``options`` are Spark/Glue format options.
-- ``resolve_table(database, table_name) -> CatalogTable``: seam for the
-  catalog map (T5). Until then it raises ``GlueLocalUnsupported``.
+- ``resolve_table(database, table_name) -> CatalogTable``: look up
+  ``catalog."database.table"`` in config (exact key first, then
+  case-insensitive). Unmapped tables raise ``CatalogTableNotFound`` (a
+  ``LookupError``) whose message is the exact TOML to add. A bad entry (no
+  ``path`` / ``format``, unknown keys, non-table ``options``) raises
+  ``ValueError``. ``resolve_table`` never applies ``catalog.on_missing``:
+  readers check ``catalog_on_missing()`` (``"error"`` | ``"empty"``, anything
+  else is a ``ValueError``) and turn the miss into an empty frame; writers
+  always raise.
+- ``mapped_tables() -> {(database, table): CatalogTable}``: every mapped table.
+- ``view_name(database, table_name) -> str``: ``db_table`` (non-word chars
+  become ``_``).
+- ``register_temp_views(spark)``: ``server.on_new_session`` callback (wired
+  in ``prytt.shims.pyspark_hooks.on_session``) that registers each mapped
+  table as a temp view. Unreadable tables (no data yet) log ``WARN`` and are
+  skipped; registered ones log ``MAP``.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import NamedTuple
 
 from prytt import config
-from prytt.stub import GlueLocalUnsupported, log
+from prytt.stub import log
 
 _S3_SCHEMES = ("s3://", "s3a://", "s3n://")
 _MODES = ("local", "passthrough")
@@ -100,8 +115,95 @@ def map_paths(uris, for_write: bool = False) -> list:
     return [map_path(uri, for_write=for_write) for uri in uris]
 
 
+class CatalogTableNotFound(LookupError):
+    """A ``from_catalog`` table with no ``catalog."db.table"`` mapping."""
+
+    def __init__(self, database: str, table_name: str):
+        self.database = database
+        self.table_name = table_name
+        key = f"{database}.{table_name}"
+        super().__init__(
+            f"prytt: catalog table {key} is not mapped. Add this to pyproject.toml "
+            f"(or the same without 'tool.prytt.' to prytt.toml):\n\n"
+            f'[tool.prytt.catalog."{key}"]\n'
+            f'path = "s3://<bucket>/<prefix>/{table_name}/"\n'
+            f'format = "parquet"\n'
+            f"options = {{}}\n\n"
+            f'or set catalog.on_missing = "empty" to read it as an empty frame'
+        )
+
+    def __str__(self):
+        return self.args[0]
+
+
+_ENTRY_KEYS = {"path", "format", "options"}
+
+
+def mapped_tables() -> dict:
+    """``{(database, table): CatalogTable}`` for every configured table."""
+    tables = {}
+    for key, entry in config.get().catalog.items():
+        database, sep, table_name = key.partition(".")
+        if not sep or not database or not table_name:
+            raise ValueError(f'prytt config: catalog key {key!r} must be "database.table"')
+        tables[(database, table_name)] = _catalog_table(key, entry)
+    return tables
+
+
+def _catalog_table(key: str, entry: dict) -> CatalogTable:
+    unknown = sorted(set(entry) - _ENTRY_KEYS)
+    if unknown:
+        raise ValueError(f"prytt config: catalog.{key!r} has unknown key(s) {', '.join(unknown)}")
+    missing = [name for name in ("path", "format") if not entry.get(name)]
+    if missing:
+        raise ValueError(f"prytt config: catalog.{key!r} needs {' and '.join(missing)}")
+    options = entry.get("options") or {}
+    if not isinstance(options, dict):
+        raise ValueError(f"prytt config: catalog.{key!r} options must be a table")
+    return CatalogTable(str(entry["path"]), str(entry["format"]), dict(options))
+
+
+def view_name(database: str, table_name: str) -> str:
+    return re.sub(r"\W", "_", f"{database}_{table_name}")
+
+
+def register_temp_views(spark) -> None:
+    """``on_new_session`` hook: each mapped table becomes temp view ``db_table``.
+
+    A table whose data cannot be read yet (nothing written, bad format) is
+    skipped with a ``WARN`` so session creation never fails because of it.
+    """
+    from prytt import formats
+
+    for (database, table_name), table in mapped_tables().items():
+        view = view_name(database, table_name)
+        try:
+            fmt = formats.spark_format(table.format)
+            reader = spark.read.format(fmt).options(**formats.spark_options(fmt, table.options))
+            reader.load(map_path(table.path)).createOrReplaceTempView(view)
+        except Exception as exc:
+            first_line = (str(exc).strip().splitlines() or [type(exc).__name__])[0]
+            log("WARN", f"temp view {view} for {database}.{table_name} skipped: {first_line}")
+            continue
+        log("MAP", f"catalog {database}.{table_name} -> temp view {view}")
+
+
+_ON_MISSING = ("error", "empty")
+
+
+def catalog_on_missing() -> str:
+    value = config.get().catalog_on_missing
+    if value not in _ON_MISSING:
+        raise ValueError(f"prytt config: catalog.on_missing must be one of {_ON_MISSING}, got {value!r}")
+    return value
+
+
 def resolve_table(database: str, table_name: str) -> CatalogTable:
-    raise GlueLocalUnsupported(
-        f"catalog table {database}.{table_name}: catalog mapping is not implemented yet "
-        "(use from_options with an s3 path)"
-    )
+    key = f"{database}.{table_name}"
+    catalog = config.get().catalog
+    entry = catalog.get(key)
+    if entry is None:  # Glue names are case-insensitive
+        entry = next((v for k, v in catalog.items() if k.lower() == key.lower()), None)
+    if entry is None:
+        raise CatalogTableNotFound(database, table_name)
+    return _catalog_table(key, entry)
