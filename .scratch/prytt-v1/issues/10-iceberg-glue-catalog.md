@@ -1,6 +1,6 @@
 # T10 Iceberg glue_catalog
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 02, 05
 
 Spec: §10 Iceberg; §11 iceberg.warehouse.
