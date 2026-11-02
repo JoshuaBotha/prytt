@@ -242,7 +242,7 @@ v2 `filter` / `map` requirements (spike S6):
 | `ApplyMapping` (tuples `(src, src_type, tgt, tgt_type)`; dotted nested paths; cast + alias) | `Filter`, `Map` (see above) |
 | `SelectFields`, `DropFields`, `RenameField` | `Relationalize`, `Unbox`, `UnnestFrame` |
 | `Join` (`frame1, frame2, keys1, keys2`) | `SplitFields`, `SplitRows`, `Spigot` |
-| `DropNullFields` (drop all-null columns) | `ErrorsAsDynamicFrame`, anything else |
+| `DropNullFields` (drop `NullType` fields, incl. in structs and arrays of structs; by type, never by value) | `ErrorsAsDynamicFrame`, anything else |
 | `ResolveChoice` (cast specs only) | |
 
 ### `awsglue.job.Job`

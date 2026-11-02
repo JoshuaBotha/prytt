@@ -112,19 +112,59 @@ class Join(GlueTransform):
         return frame1.join(keys1, keys2, frame2, transformation_ctx=transformation_ctx, info=info)
 
 
+def _has_null_type(dtype) -> bool:
+    """True if ``dtype`` is, or holds where Glue looks, a ``NullType`` field."""
+    from pyspark.sql.types import ArrayType, NullType, StructType
+
+    if isinstance(dtype, NullType):
+        return True
+    if isinstance(dtype, StructType):
+        return any(_has_null_type(f.dataType) for f in dtype.fields)
+    if isinstance(dtype, ArrayType) and isinstance(dtype.elementType, StructType):
+        return _has_null_type(dtype.elementType)
+    return False
+
+
+def _without_null_types(expr, dtype):
+    """Rebuild a struct (or array of structs) without its ``NullType`` fields."""
+    from pyspark.sql import functions as F
+    from pyspark.sql.types import ArrayType, NullType
+
+    if isinstance(dtype, ArrayType):
+        return F.transform(expr, lambda x: _without_null_types(x, dtype.elementType))
+    fields = []
+    for f in dtype.fields:
+        if isinstance(f.dataType, NullType):
+            continue
+        child = expr.getField(f.name)
+        if _has_null_type(f.dataType):
+            child = _without_null_types(child, f.dataType)
+        fields.append(child.alias(f.name))
+    return F.when(expr.isNotNull(), F.struct(*fields))
+
+
 class DropNullFields(GlueTransform):
+    """Glue's rule: drop fields typed ``NullType`` (top-level, in structs, and
+    in structs inside arrays). Values are never inspected, so a typed column
+    that happens to be all null is kept. Maps are not walked."""
+
     @classmethod
     def apply(cls, frame, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
         from pyspark.sql import functions as F
+        from pyspark.sql.types import NullType
 
         df = frame.toDF()
-        if not df.columns:
-            return frame
-        counts = df.select(*[F.count(F.col(f"`{c}`")).alias(f"c{i}") for i, c in enumerate(df.columns)]).first()
-        null_cols = [c for i, c in enumerate(df.columns) if counts[f"c{i}"] == 0]
-        if not null_cols:
+        if not any(_has_null_type(f.dataType) for f in df.schema.fields):
             return frame._wrap(df)
-        return frame._wrap(df.drop(*null_cols))
+        columns = []
+        for f in df.schema.fields:
+            if isinstance(f.dataType, NullType):
+                continue
+            column = F.col(f"`{f.name}`")
+            if _has_null_type(f.dataType):
+                column = _without_null_types(column, f.dataType).alias(f.name)
+            columns.append(column)
+        return frame._wrap(df.select(*columns))
 
 
 class ResolveChoice(GlueTransform):
