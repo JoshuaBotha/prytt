@@ -6,7 +6,7 @@
   ``server.session_built(spark)`` after. Also calls ``register_session_setup``,
   so the setup applies to spark-only scripts that never import ``awsglue``.
 - ``register_session_setup()``: register the server callbacks (idempotent):
-  ``iceberg.set_sail_catalog_env`` before start; ``paths.register_temp_views``
+  ``iceberg.set_sail_catalog_env`` before start; ``paths.register_mapped_tables``
   (T5) and ``iceberg.setup_session`` (T10) per new session.
   ``server.ensure_running`` also calls it, so every start path (SparkContext
   shim, builder, ``GlueContext``, pytest plugin) gets it even if
@@ -50,7 +50,7 @@ def register_session_setup():
     from prytt import iceberg, paths, server
 
     server.on_before_start(iceberg.set_sail_catalog_env)  # glue_catalog (T10)
-    server.on_new_session(paths.register_temp_views)  # catalog tables as db_table views (T5)
+    server.on_new_session(paths.register_mapped_tables)  # catalog tables as db.table + db_table views
     server.on_new_session(iceberg.setup_session)  # warehouse dir + glue_catalog tables (T10)
 
 

@@ -28,19 +28,28 @@ Interface:
 - ``mapped_tables() -> {(database, table): CatalogTable}``: every mapped table.
 - ``view_name(database, table_name) -> str``: ``db_table`` (non-word chars
   become ``_``).
-- ``register_temp_views(spark)``: ``server.on_new_session`` callback (wired
-  in ``prytt.shims.pyspark_hooks.on_session``) that registers each mapped
-  table as a temp view. Tables Spark cannot read (no data yet) log ``WARN``
-  and are skipped; registered ones log ``MAP``. Config errors (ORC, bad
-  ``s3.mode``, passthrough without a region) raise.
+- ``register_mapped_tables(spark)``: ``server.on_new_session`` callback
+  (wired in ``prytt.shims.pyspark_hooks.on_session``) that registers each
+  mapped table as table ``db.table`` in the session's default catalog and as
+  temp view ``db_table``. Tables Spark cannot read (no data yet) or the
+  server won't register log ``WARN`` and are skipped (no table, no view);
+  registered ones log one ``MAP`` line. Config errors (ORC, bad
+  ``s3.mode``, passthrough without a region) raise. It also wraps
+  ``spark.sql`` / ``spark.table``: mapped names in table positions
+  (``sqltext.table_refs``) resolve case-insensitively, quoted or not, and
+  Spark's not-found error for one unmapped ``db.table`` gets the
+  ``CatalogTableNotFound`` TOML as an exception note (``on_missing`` does not
+  apply). Other errors pass through unchanged.
 """
 
+import functools
 import os
 import re
 from pathlib import Path
 from typing import NamedTuple
 
 from prytt import config
+from prytt.sqltext import ident, literal, parse_name, table_refs
 from prytt.stub import first_line, log
 
 _S3_SCHEMES = ("s3://", "s3a://", "s3n://")
@@ -114,9 +123,11 @@ def map_paths(uris, for_write: bool = False) -> list:
 
 
 class CatalogTableNotFound(LookupError):
-    """A ``from_catalog`` table with no ``catalog."db.table"`` mapping."""
+    """A catalog table with no ``catalog."db.table"`` mapping.
+    ``on_missing_tip=False`` leaves out the ``on_missing = "empty"`` tip, for
+    reads that can't honour it (SQL)."""
 
-    def __init__(self, database: str, table_name: str):
+    def __init__(self, database: str, table_name: str, on_missing_tip: bool = True):
         self.database = database
         self.table_name = table_name
         key = f"{database}.{table_name}"
@@ -126,8 +137,8 @@ class CatalogTableNotFound(LookupError):
             f'[tool.prytt.catalog."{key}"]\n'
             f'path = "s3://<bucket>/<prefix>/{table_name}/"\n'
             f'format = "parquet"\n'
-            f"options = {{}}\n\n"
-            f'or set catalog.on_missing = "empty" to read it as an empty frame'
+            f"options = {{}}"
+            + (f'\n\nor set catalog.on_missing = "empty" to read it as an empty frame' if on_missing_tip else "")
         )
 
     def __str__(self):
@@ -165,27 +176,166 @@ def view_name(database: str, table_name: str) -> str:
     return re.sub(r"\W", "_", f"{database}_{table_name}")
 
 
-def register_temp_views(spark) -> None:
-    """``on_new_session`` hook: each mapped table becomes temp view ``db_table``.
+def register_mapped_tables(spark) -> None:
+    """``on_new_session`` hook: each mapped table becomes registered table
+    ``db.table`` (default catalog) and temp view ``db_table``.
 
-    A table whose data Spark cannot read yet (nothing written) is skipped
-    with a ``WARN`` so session creation never fails because of it. Config
-    errors (unsupported format such as ORC, bad ``s3.mode``, passthrough
-    without a region) are resolved before Spark is touched and raise.
+    A table whose data Spark cannot read yet (nothing written), or that the
+    server will not register, is skipped with a ``WARN`` and gets neither
+    name, so session creation never fails because of it. Config errors
+    (unsupported format such as ORC, bad ``s3.mode``, passthrough without a
+    region) are resolved before Spark is touched and raise. ``IF NOT EXISTS``
+    keeps registration safe on a persistent external catalog.
     """
     from pyspark.errors import PySparkException
 
-    from prytt.io import read_df
+    from prytt import formats, io
 
+    registered = {}
     for (database, table_name), table in mapped_tables().items():
+        name = f"{database}.{table_name}"
         view = view_name(database, table_name)
-        df = read_df(spark, [table.path], table.format, table.options)  # lazy; config errors raise here
-        try:
-            df.createOrReplaceTempView(view)
-        except PySparkException as exc:
-            log("WARN", f"temp view {view} for {database}.{table_name} skipped: {first_line(exc)}")
+        fmt = formats.spark_format(table.format)  # config errors raise here
+        location = map_path(table.path)
+        # Sail registers a missing parquet/json/csv location without error, as
+        # an empty table with no columns, so check for data ourselves.
+        if not _has_data(location):
+            log("WARN", f"catalog table {name} skipped: no data at {location} yet")
             continue
-        log("MAP", f"catalog {database}.{table_name} -> temp view {view}")
+        try:
+            io.read_df(spark, location, table.format, table.options).createOrReplaceTempView(view)
+            try:
+                _create_table(spark, database, table_name, fmt, formats.spark_options(fmt, table.options), location)
+            except PySparkException:
+                spark.catalog.dropTempView(view)
+                raise
+        except PySparkException as exc:
+            log("WARN", f"catalog table {name} skipped: {first_line(exc)}")
+            continue
+        log("MAP", f"{name} -> {location} (table {name}, view {view})")
+        registered[(database.lower(), table_name.lower())] = (database, table_name)
+    _wrap_table_names(spark, registered)
+
+
+def _create_table(spark, database, table_name, fmt, options, location) -> None:
+    spark.sql(f"CREATE DATABASE IF NOT EXISTS {ident(database)}")
+    opts = ", ".join(f"{literal(k)} {literal(v)}" for k, v in options.items())
+    spark.sql(
+        f"CREATE TABLE IF NOT EXISTS {ident(database)}.{ident(table_name)} USING {fmt}"
+        + (f" OPTIONS ({opts})" if opts else "")
+        + f" LOCATION {literal(location)}"
+    )
+
+
+def _has_data(location: str) -> bool:
+    if _s3_key(location) is not None:  # passthrough: Spark decides
+        return True
+    path = Path(location)
+    if path.is_file():
+        return True
+    return path.is_dir() and any(not p.name.startswith(".") for p in path.iterdir())
+
+
+def _wrap_table_names(spark, registered: dict) -> None:
+    """Wrap ``spark.sql`` and ``spark.table`` for mapped ``db.table`` names.
+
+    Sail 0.7.3 resolves table names case-sensitively (Spark and Glue do not),
+    so a two-part name in a table position (``sqltext.table_refs``) that is
+    mapped is rewritten to its configured spelling, quoted or not. Column
+    references, comments and string literals are left alone.
+
+    A query or name with an unmapped two-part table name is analysed up
+    front (Spark Connect is otherwise lazy, as classic Spark is not). If that
+    fails with Spark's not-found error for such a name, the error is
+    re-raised with the TOML to add as a note. Any other error is dropped
+    here and surfaces at the action as before.
+    """
+
+    def lookup(parts: list):
+        """``(canonical name or None, unregistered (db, table) or None)``."""
+        if len(parts) != 2:
+            return None, None
+        found = registered.get((parts[0].lower(), parts[1].lower()))
+        if found is None:
+            return None, tuple(parts)
+        return ".".join(ident(p) for p in found), None
+
+    def rewrite_sql(query: str) -> tuple:
+        out, last, unregistered = [], 0, []
+        for start, end, parts in table_refs(query):
+            canonical, missing = lookup(parts)
+            if missing:
+                unregistered.append(missing)
+            out += [query[last:start], canonical or query[start:end]]
+            last = end
+        return "".join(out) + query[last:], unregistered
+
+    sql, table = spark.sql, spark.table
+    if getattr(sql, "__prytt_names_wrapped__", False):
+        return
+
+    @functools.wraps(sql)
+    def sql_wrapper(sqlQuery, *args, **kwargs):
+        if not isinstance(sqlQuery, str):
+            return sql(sqlQuery, *args, **kwargs)
+        sqlQuery, unregistered = rewrite_sql(sqlQuery)
+        return _hint_unmapped(lambda: sql(sqlQuery, *args, **kwargs), unregistered)
+
+    @functools.wraps(table)
+    def table_wrapper(tableName, *args, **kwargs):
+        parts = parse_name(tableName) if isinstance(tableName, str) else None
+        canonical, missing = lookup(parts or [])
+        tableName = canonical or tableName
+        return _hint_unmapped(lambda: table(tableName, *args, **kwargs), [missing] if missing else [])
+
+    # Not ``__prytt_wrapped__``: functools.wraps copies the flag, and iceberg
+    # checks that one before wrapping this wrapper in turn.
+    sql_wrapper.__prytt_names_wrapped__ = True
+    spark.sql, spark.table = sql_wrapper, table_wrapper
+
+
+_NOT_FOUND = re.compile(r"\[TABLE_OR_VIEW_NOT_FOUND\][^:]*:\s*(\S+)")
+
+
+def _hint_unmapped(call, unregistered: list):
+    """Run ``call`` (a ``spark.sql`` / ``spark.table``); if it, or analysing
+    its result, fails with not-found for exactly one of ``unregistered``
+    ``(db, table)`` names, add the TOML hint to Spark's error and re-raise.
+
+    Sail's error may name only the table, so when several unregistered names
+    share it no hint is added rather than a guess.
+    """
+    if not unregistered:
+        return call()
+    from pyspark.errors import AnalysisException
+
+    def hinted(exc):
+        match = _NOT_FOUND.search(str(exc))
+        missing = parse_name(match.group(1)) if match else None
+        if not missing:
+            return False
+        missing = [p.lower() for p in missing]
+        candidates = {
+            (db.lower(), tbl.lower()): (db, tbl)
+            for db, tbl in unregistered
+            if tbl.lower() == missing[-1] and (len(missing) < 2 or db.lower() == missing[-2])
+        }
+        if len(candidates) != 1:
+            return False
+        exc.add_note(str(CatalogTableNotFound(*candidates.popitem()[1], on_missing_tip=False)))
+        return True
+
+    try:
+        df = call()
+    except AnalysisException as exc:
+        hinted(exc)
+        raise
+    try:
+        df.schema  # noqa: B018 (forces analysis)
+    except AnalysisException as exc:
+        if hinted(exc):
+            raise
+    return df
 
 
 def catalog_on_missing() -> str:

@@ -283,11 +283,43 @@ options = { partitionKeys = ["country"] }   # used by write_dynamic_frame.from_c
 - Reading an unmapped table raises an error that contains the exact TOML to
   add. With `on_missing = "empty"`, the read logs a `WARN` and returns an
   empty frame instead. Writing to an unmapped table always raises.
-- Every mapped table is also registered as a **temp view** named `db_table`
-  (e.g. `raw_db_orders`), so `spark.sql("select * from raw_db_orders")` works.
-  Views are built when the session is created. A table that has no data yet
-  is skipped with a `WARN` and gets no view. `spark.sql("... raw_db.orders
-  ...")` with a dotted name is **not** resolved through the map in v1.
+- Every mapped table is also a **registered table**, so a script can use its
+  Glue name: `spark.table("raw_db.orders")` and
+  `spark.sql("select * from raw_db.orders")` read the mapped path with the
+  configured format and options. Joins across mapped tables work, and the
+  name is case-insensitive (`Raw_DB.Orders` works too).
+- Querying an unmapped `db.table` with `spark.sql` / `spark.table` fails at
+  that call with Spark's "table or view not found" error, and the traceback
+  ends with the TOML to add. The hint is an exception note, so it is not part
+  of `str(e)`. Tables the script creates itself get Spark's plain error.
+  prytt tells them apart by name only, so a table the script created and
+  then dropped, or a typo in a database the script owns, also gets the hint.
+  Only names in a table position (after `FROM`, `JOIN`, `TABLE`, `INTO`,
+  `UPDATE`, `USING`, or in a `FROM` list) are looked up, and if two
+  unmapped names share a table name (`a.orders`, `b.orders`) there is no
+  hint, because Spark's error doesn't say which one is missing.
+- Every mapped table is also a **temp view** named `db_table` (e.g.
+  `raw_db_orders`), so `spark.sql("select * from raw_db_orders")` still works.
+  View names are case-sensitive.
+- Tables and views are registered when the session is created, and the log
+  shows one line per table:
+  `MAP  raw_db.orders -> <local path> (table raw_db.orders, view raw_db_orders)`.
+  A table that has no data yet is skipped with a `WARN`, so neither name
+  resolves for it in that session, even after the job writes it. In S3
+  passthrough mode prytt can't check, so the table is registered anyway;
+  for a prefix with no data Sail (as it does for a local path) gives an
+  empty table with no columns: `select *` returns no rows and naming a
+  column fails with "cannot resolve attribute" (unverified against real S3).
+- With `SPARK_REMOTE` set, the tables are registered on that server too, so
+  it must be able to read the mapped local paths. Registration uses
+  `IF NOT EXISTS`, so a persistent catalog doesn't fail on a second run, but
+  it keeps the old location if you change a table's `path` (untested).
+- Limits: `on_missing = "empty"` does not apply to SQL reads (an unmapped
+  name errors); writes through
+  SQL (`INSERT INTO raw_db.orders`, `saveAsTable`) are not mapped; a mapped
+  table is not reachable as `glue_catalog.raw_db.orders` (that catalog belongs
+  to Iceberg); a script's own `CREATE DATABASE` / `CREATE TABLE` of a mapped
+  name fails with Spark's "already exists" error.
 
 ### S3 passthrough (best-effort)
 

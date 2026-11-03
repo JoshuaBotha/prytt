@@ -182,4 +182,4 @@ def test_temp_view_registration_raises_config_errors(monkeypatch, tmp_path, toml
     set_env(monkeypatch, **env)
 
     with pytest.raises(error):
-        paths.register_temp_views(_NoSpark())
+        paths.register_mapped_tables(_NoSpark())

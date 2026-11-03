@@ -2,7 +2,7 @@
 
 Drop-in `awsglue` + PySpark shim so unmodified AWS Glue 6 job scripts run locally on Sail (Rust Spark Connect server), no JVM.
 
-- User docs: `README.md` (behaviour, config, what's real vs stubbed). Future feature design: `prytt-spec-sql-catalog.md` (not in v1).
+- User docs: `README.md` (behaviour, config, what's real vs stubbed). Design record for `db.table` SQL resolution: `prytt-spec-sql-catalog.md` (implemented).
 - Spike findings: `spikes/NOTES.md`. S5 SSO-profile check skipped by decision (S3 passthrough is best-effort).
 - Directory is still named `pritt/`; the project name is `prytt` everywhere else.
 - Before any change: follow `CONTRIBUTING.md` (branch names, PR titles, tests, done = `mise run ci` green), including its "For coding agents" section.
@@ -35,5 +35,9 @@ mise is the single entry point for tooling, tasks and env vars, so a task runs t
 - No ORC in Sail. Parquet/JSON/CSV/Delta/Iceberg fine.
 - Always set `spark.sql.warehouse.dir` to an absolute path, or Delta writes `./spark-warehouse` into cwd and Iceberg CTAS fails.
 - Sail catalogs are in-memory per session: re-register `glue_catalog` / mapped tables on every new session.
+- Sail 0.7.3 table, database and temp-view names are **case-sensitive** (`spark.sql.caseSensitive=false` has no effect). prytt rewrites mapped `db.table` names in `spark.sql`/`spark.table` (`paths._wrap_table_names`).
+- Over Spark Connect, `spark.sql("SELECT ...")` and `spark.table(...)` are **lazy**: a missing table raises only at the action (`collect`, `show`), not in the call (classic Spark/Glue raises eagerly). To catch it in a wrapper, force analysis with `df.schema`. Sail's not-found error names only the last part (`Table or view not found: orders`).
+- Sail registers `CREATE TABLE ... USING parquet|json|csv LOCATION '<missing dir>'` (and a temp view over it) without error, as an empty table with no columns. Only delta fails. Check for data yourself before registering.
+- `functools.wraps` copies the wrapped function's `__dict__`, so a `__prytt_wrapped__`-style flag on an inner wrapper shows up on the outer one. Use a distinct flag per wrapper (iceberg checks `__prytt_wrapped__` on `spark.sql`).
 - `mapInPandas` under pandas 3: `NULL` strings arrive as `NaN` (convert to `None`); worker exceptions arrive as empty `PythonException()` (re-raise with traceback).
 - pyspark-client `SparkSession.__del__` shuts down a process-wide thread pool; if the GC runs it inside that pool's `submit()` it self-deadlocks (0% CPU hang). prytt replaces `__del__` (`pyspark_hooks.on_connect_session`, test `tests/unit/test_session_gc.py`). Tests that `builder.create()` an extra session should still `stop()` it.

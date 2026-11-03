@@ -1,6 +1,6 @@
-# Spec (future): `spark.sql` catalog resolution in prytt
+# Spec: `spark.sql` catalog resolution in prytt (implemented)
 
-Status: light design note. **Not in v1.** Builds on the catalog mapping and temp views described in the README ([Catalog tables](README.md#catalog-tables)).
+Status: **implemented** (approach 1). Kept as the design record; the README's [Catalog tables](README.md#catalog-tables) section describes the shipped behaviour and its limits.
 
 ## Goal
 
