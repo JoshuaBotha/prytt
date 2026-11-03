@@ -61,7 +61,7 @@ print(sorted(tuple(r) for r in spark.table("glue_catalog.db.tbl").collect()))
     assert last_line(proc) == "[(1, 'a'), (2, 'B'), (3, 'c')]"
     table_dir = tmp_path / ".prytt" / "warehouse" / "db" / "tbl"
     assert (table_dir / "metadata").is_dir()
-    assert f"MAP  glue_catalog.db.tbl -> {table_dir}" in proc.stderr
+    assert f"MAP  glue_catalog.db.tbl -> {table_dir.as_posix()}" in proc.stderr
 
 
 def test_every_new_session_gets_the_warehouse_and_the_tables(tmp_path):
@@ -80,7 +80,7 @@ other.stop()
     )
 
     warehouse = tmp_path / ".prytt" / "warehouse"
-    assert proc.stdout.strip().splitlines() == [str(warehouse), "1"]
+    assert proc.stdout.strip().splitlines() == [warehouse.as_posix(), "1"]
     assert (warehouse / "default" / "t" / "metadata").is_dir()
     assert not (tmp_path / "spark-warehouse").exists()
 
