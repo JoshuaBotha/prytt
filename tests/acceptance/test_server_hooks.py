@@ -1,4 +1,4 @@
-"""T2: Sail lifecycle, import hooks, SparkContext shim (spec §6, §7, §8, §12, §13).
+"""T2: Sail lifecycle, import hooks, SparkContext shim.
 
 Every test runs a fresh interpreter so the installed ``prytt.pth`` path is real.
 """

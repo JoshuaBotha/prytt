@@ -1,4 +1,4 @@
-"""Sail server lifecycle (spec §7) and the session-setup seam for later features.
+"""Sail server lifecycle and the session-setup seam for later features.
 
 Interface:
 

@@ -58,6 +58,9 @@ Glue would pass:
 python jobs/my_job.py --JOB_NAME local --source_path s3://raw-bucket/orders/
 ```
 
+See [Job arguments](#job-arguments) to set arguments in config instead,
+and for what happens when one is missing.
+
 What happens:
 
 - A `.pth` file installs a tiny import hook at interpreter start. It costs
@@ -82,6 +85,67 @@ Plain PySpark scripts with no `awsglue` and no `SparkContext` work too: the
 
 If `SPARK_REMOTE` is already set, prytt uses that server and doesn't start
 Sail. Leave it **unset** for the normal local flow.
+
+### Job arguments
+
+`getResolvedOptions(sys.argv, [...])` looks up each requested option in
+these places, first match wins:
+
+| # | Source | Example |
+|---|---|---|
+| 1 | Command line | `--JOB_NAME local` or `--JOB_NAME=local` |
+| 2 | `PRYTT_ARG_<name>` env var | `PRYTT_ARG_JOB_NAME=local` |
+| 3 | `[args]` in `prytt.toml` | `JOB_NAME = "local"` |
+| 4 | `[tool.prytt.args]` in `pyproject.toml` | `JOB_NAME = "local"` |
+| 5 | Nowhere | `None`, logged `WARN` (raises in strict mode) |
+
+Each option is looked up on its own, so you can mix sources: put stable
+values in config and override one on the command line.
+
+```toml
+# prytt.toml (searched upward from cwd, like the rest of the config)
+[args]
+JOB_NAME = "local"
+source_path = "s3://raw-bucket/orders/"
+target_path = "s3://curated-bucket/orders/"
+```
+
+```toml
+# or in pyproject.toml
+[tool.prytt.args]
+JOB_NAME = "local"
+```
+
+```bash
+python jobs/my_job.py                                     # uses prytt.toml
+python jobs/my_job.py --target_path s3://scratch/orders/  # overrides one
+PRYTT_ARG_JOB_NAME=nightly python jobs/my_job.py          # env beats config
+```
+
+Details:
+
+- **Names** match the option exactly as the script requests it
+  (case-sensitive). For an option with a hyphen, such as `source-path`,
+  prytt also tries the underscore form (`source_path`), because env var
+  names can't contain `-`. The result is keyed `source_path`, as on Glue.
+- **Values are strings**, as Glue passes them. TOML numbers become strings
+  (`10` → `"10"`) and booleans become `"true"` / `"false"`.
+- **Logging:** a value taken from an env var or config logs
+  `INFO --JOB_NAME not on the command line; using 'local' from prytt config`.
+  A missing option logs a `WARN` naming it, and its value is `None`. The
+  job keeps running, which is what you want when the script never uses that
+  argument (often the case for `JOB_NAME`). If the script does use it, it
+  fails later, wherever it uses the `None`.
+- **Strict mode** (on by default when `CI` is set; see
+  [Strict mode](#strict-mode)): a missing option raises `GlueArgumentError`
+  with the same message Glue gives, e.g. `the following arguments are
+  required: --JOB_NAME`. Options set by env var or config count as present.
+- `TempDir` and `RedshiftTempDir` are never required and mirror each other,
+  as on Glue.
+- prytt doesn't change `sys.argv`. A script that checks `"--name" in
+  sys.argv` before calling `getResolvedOptions` (a common way to make an
+  argument optional) only sees the command line, so pass those arguments
+  there.
 
 ### Log output
 
@@ -129,6 +193,39 @@ To test a whole job end to end, run the script with `subprocess` and
 `sys.executable`, then check its output. That is how prytt's own acceptance
 tests work (`tests/acceptance/`).
 
+### Extra `SparkSession`s
+
+If a test makes a second session with `SparkSession.builder.create()`, call
+`stop()` on it when the test is done:
+
+```python
+other = SparkSession.builder.create()
+try:
+    ...
+finally:
+    other.stop()
+```
+
+Background: in pyspark-client, a session that is dropped without `stop()` is
+closed by its `__del__` once garbage collection reaches it. That close also
+shuts down a thread pool that all sessions share. If the collection happens
+while another session is mid-query, the process deadlocks: the run hangs with
+no error and 0% CPU, in whichever test is running at the time. prytt patches
+that `__del__` so a collected session closes only its own connection, which
+avoids the hang. Stopping extra sessions yourself is still cleaner and doesn't
+depend on the patch.
+
+prytt's own test config dumps every thread's stack after 60 s and fails the
+run after 180 s, so a hang shows where it's stuck instead of stalling CI.
+Copy that if your suite needs it (it uses the `pytest-timeout` plugin):
+
+```toml
+[tool.pytest.ini_options]
+faulthandler_timeout = 60
+timeout = 180
+timeout_method = "thread"
+```
+
 ## Configuration
 
 Settings come from these sources, highest priority first:
@@ -149,6 +246,7 @@ Settings come from these sources, highest priority first:
 | `catalog.on_missing` | `PRYTT_CATALOG_ON_MISSING` | `error` | `error` or `empty` |
 | `catalog."db.table"` | | none | See below |
 | `iceberg.warehouse` | `PRYTT_ICEBERG_WAREHOUSE` | `./.prytt/warehouse` | Made absolute |
+| `args.<name>` | `PRYTT_ARG_<name>` | none | Job arguments for `getResolvedOptions`; see [Job arguments](#job-arguments) |
 
 In TOML, dotted keys are written as tables, and unknown keys are an error:
 
@@ -209,7 +307,9 @@ By default, a call prytt doesn't implement (an unknown `GlueContext`,
 `DynamicFrame`, `Job` or `SparkContext` method, or an unknown transform) logs
 `STUB` and returns something chainable, so the rest of the job runs. In
 strict mode the same call raises `prytt.stub.GlueLocalUnsupported` (a
-`NotImplementedError`), so CI catches the gaps.
+`NotImplementedError`), so CI catches the gaps. A job argument missing from
+the command line, env and config raises `GlueArgumentError`, as on real
+Glue, instead of coming back as `None` (see [Job arguments](#job-arguments)).
 
 Strict mode is on when `CI` is truthy, unless `strict` is set explicitly:
 `CI=true PRYTT_STRICT=0` runs non-strict. Calls that are logged as `WARN`

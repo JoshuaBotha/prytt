@@ -1,4 +1,4 @@
-"""prytt.formats: Glue format names and format_options -> Spark (spec §9)."""
+"""prytt.formats: Glue format names and format_options -> Spark."""
 
 import pytest
 

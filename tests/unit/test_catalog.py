@@ -1,4 +1,4 @@
-"""Catalog mapping through GlueContext and temp views (spec §10 Catalog).
+"""Catalog mapping through GlueContext and temp views.
 
 Live Sail session; one GlueContext for the module.
 """
@@ -116,8 +116,10 @@ def test_mapped_tables_are_temp_views_on_each_new_session(glue_context, project,
     put_orders(project, 5, 6)
 
     spark = SparkSession.builder.create()  # a fresh session runs the on_new_session hooks
-
-    assert rows(spark.sql("select id from raw_db_orders"), "id") == [(5,), (6,)]
+    try:
+        assert rows(spark.sql("select id from raw_db_orders"), "id") == [(5,), (6,)]
+    finally:
+        spark.stop()  # don't leave it for the GC to collect mid-query in a later test
     err = capsys.readouterr().err
     assert "raw_db_orders" in err  # registered (MAP)
     assert "curated_db_orders" in err  # no data yet: skipped with a WARN, not a crash

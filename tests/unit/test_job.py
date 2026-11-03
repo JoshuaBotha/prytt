@@ -1,4 +1,4 @@
-"""awsglue.job.Job (spec §9): init/commit log only; bookmarks are a no-op."""
+"""awsglue.job.Job: init/commit log only; bookmarks are a no-op."""
 
 import pytest
 

@@ -1,4 +1,4 @@
-"""Read and write DataFrames at Glue-style locations (spec §9, §10).
+"""Read and write DataFrames at Glue-style locations.
 
 Shared by ``awsglue.context`` (readers/writers) and
 ``prytt.paths.register_temp_views`` (catalog temp views), so ``prytt`` never

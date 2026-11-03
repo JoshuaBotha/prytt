@@ -1,4 +1,4 @@
-"""awsglue.context.GlueContext on a live Sail session (spec §9, §10).
+"""awsglue.context.GlueContext on a live Sail session.
 
 One Spark session for the whole module: it is slow to start.
 """

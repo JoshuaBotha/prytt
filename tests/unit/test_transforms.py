@@ -1,4 +1,4 @@
-"""awsglue.transforms: thin Glue-signature wrappers over DynamicFrame (spec §9).
+"""awsglue.transforms: thin Glue-signature wrappers over DynamicFrame.
 
 One Spark session for the whole module: it is slow to start.
 """
@@ -133,15 +133,53 @@ def test_join_on_same_key_name_keeps_one_key_column(spark, people):
     assert [(r["id"], r["order_id"], r["name"]) for r in df.collect()] == [(2, 10, "bob")]
 
 
-def test_drop_null_fields_drops_all_null_columns_only(spark):
+def test_drop_null_fields_drops_null_type_columns(spark):
     from awsglue.dynamicframe import DynamicFrame
     from awsglue.transforms import DropNullFields
+    from pyspark.sql import functions as F
 
-    df = spark.createDataFrame([(1, None, None), (2, None, "x")], "id int, empty string, some string")
+    df = spark.createDataFrame([(1, "a"), (2, None)], "id int, some string").withColumn("nothing", F.lit(None))
     out = DropNullFields.apply(frame=DynamicFrame.fromDF(df, None, "t"), transformation_ctx="dnf")
 
     assert out.toDF().columns == ["id", "some"]
-    assert rows(out) == [(1, None), (2, "x")]
+    assert rows(out) == [(1, "a"), (2, None)]
+
+
+def test_drop_null_fields_keeps_typed_all_null_columns(spark):
+    # Glue decides by type, never by value: an all-null string column stays.
+    from awsglue.dynamicframe import DynamicFrame
+    from awsglue.transforms import DropNullFields
+
+    df = spark.createDataFrame([(1, None), (2, None)], "id int, empty string")
+    out = DropNullFields.apply(frame=DynamicFrame.fromDF(df, None, "t"))
+
+    assert out.toDF().columns == ["id", "empty"]
+
+
+def test_drop_null_fields_drops_nested_struct_null_type_fields(spark):
+    from awsglue.dynamicframe import DynamicFrame
+    from awsglue.transforms import DropNullFields
+    from pyspark.sql import functions as F
+
+    s = F.struct(F.lit(1).alias("keep"), F.lit(None).alias("gone"))
+    df = spark.range(2).select(F.col("id"), F.when(F.col("id") == 0, s).alias("s"))
+    out = DropNullFields.apply(frame=DynamicFrame.fromDF(df, None, "t"))
+
+    assert ddl(out) == "struct<id:bigint,s:struct<keep:int>>"
+    assert rows(out) == [(0, (1,)), (1, None)]  # a null struct stays null
+
+
+def test_drop_null_fields_drops_null_type_fields_in_array_of_structs(spark):
+    from awsglue.dynamicframe import DynamicFrame
+    from awsglue.transforms import DropNullFields
+    from pyspark.sql import functions as F
+
+    elem = F.struct(F.lit(1).alias("keep"), F.lit(None).alias("gone"))
+    df = spark.range(1).select(F.col("id"), F.array(elem, elem).alias("arr"))
+    out = DropNullFields.apply(frame=DynamicFrame.fromDF(df, None, "t"))
+
+    assert ddl(out) == "struct<id:bigint,arr:array<struct<keep:int>>>"
+    assert out.toDF().select(F.size("arr")).first()[0] == 2
 
 
 def test_resolve_choice_cast_specs(people):

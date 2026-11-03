@@ -1,4 +1,4 @@
-"""Post-import hooks fired by ``prytt._hooks`` (spec §6 table). Order-independent.
+"""Post-import hooks fired by ``prytt._hooks``. Order-independent.
 
 - ``on_pyspark(module)``: set ``pyspark.SparkContext`` to the shim.
 - ``on_session(module)``: wrap ``SparkSession.Builder.getOrCreate`` / ``create``
@@ -11,6 +11,13 @@
   ``server.ensure_running`` also calls it, so every start path (SparkContext
   shim, builder, ``GlueContext``, pytest plugin) gets it even if
   ``pyspark.sql.session`` was not imported yet.
+- ``on_connect_session(module)``: replace ``SparkSession.__del__`` so a
+  garbage-collected session closes only its own channel. pyspark-client's
+  ``__del__`` calls ``client.close()``, which also shuts down the
+  process-wide ReleaseExecute thread pool: if the cyclic GC runs it inside
+  that pool's ``submit()`` (lock held), the shutdown deadlocks on the same
+  lock, and otherwise it pulls the pool from under any session still in use.
+  ``spark.stop()`` is unchanged.
 """
 
 import functools
@@ -53,3 +60,19 @@ def on_session(module):
     for name in ("getOrCreate", "create"):
         if hasattr(builder, name):
             setattr(builder, name, _wrap(getattr(builder, name)))
+
+
+def _collected_session_del(self):
+    try:
+        if hasattr(self, "_sqm"):
+            self._sqm.close()
+        client = self.client
+        if not client.is_closed:
+            client._channel.close()
+            client._closed = True
+    except Exception:
+        pass  # best effort, like pyspark-client's own __del__
+
+
+def on_connect_session(module):
+    module.SparkSession.__del__ = _collected_session_del

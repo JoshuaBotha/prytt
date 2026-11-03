@@ -1,4 +1,4 @@
-"""``awsglue.gluetypes`` (spec §5): minimal Glue type names so imports and
+"""``awsglue.gluetypes``: minimal Glue type names so imports and
 simple schema construction work. Not used by prytt for any real typing;
 ``DynamicFrame.schema()`` returns the Spark ``StructType``.
 """

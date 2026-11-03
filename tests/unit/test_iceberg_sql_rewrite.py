@@ -1,4 +1,4 @@
-"""prytt.iceberg: the ``spark.sql`` CREATE DATABASE rewrite (spec §10 Iceberg).
+"""prytt.iceberg: the ``spark.sql`` CREATE DATABASE rewrite.
 
 A fake session records the SQL that reaches the server, so no Sail is needed.
 """

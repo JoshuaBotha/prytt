@@ -1,4 +1,4 @@
-"""``awsglue.data_sink`` stub (spec §5). ``DataSink`` (from
+"""``awsglue.data_sink`` stub. ``DataSink`` (from
 ``GlueContext.getSink``) is a ``LogAny``: every call logs ``STUB`` and returns
 the sink. Use ``write_dynamic_frame.from_options`` for real writes.
 """

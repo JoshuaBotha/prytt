@@ -1,4 +1,4 @@
-"""The installed .pth bootstrap, exercised in fresh interpreters (spec §5, §6, §13)."""
+"""The installed .pth bootstrap, exercised in fresh interpreters."""
 
 import os
 import subprocess

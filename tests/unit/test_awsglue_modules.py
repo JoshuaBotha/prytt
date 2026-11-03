@@ -1,4 +1,4 @@
-"""awsglue package layout: imports Glue scripts use must resolve (spec §5, §9)."""
+"""awsglue package layout: imports Glue scripts use must resolve."""
 
 import subprocess
 import sys
