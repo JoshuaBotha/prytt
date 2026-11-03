@@ -55,6 +55,9 @@ docs/iceberg-limitations
 | `ci`       | Workflows, `.mise/tasks`, repo settings                  |
 | `chore`    | Anything else, including release version bumps          |
 
+Release branches are the exception: `release/vX.Y.Z`, made by
+`mise run release:prepare` (see [Releasing](#releasing)).
+
 `main` is protected: changes land only through a PR with green checks.
 Branches are deleted automatically after merge.
 
@@ -111,8 +114,13 @@ them readable for reviewers.
 prytt follows [Semantic Versioning](https://semver.org). While it is 0.x, a
 breaking change bumps the minor version, everything else the patch version.
 
-To release, open a `chore: release X.Y.Z` PR that only bumps `version` in
-`pyproject.toml`, and merge it. The Release workflow runs
+To release, run `mise run release:prepare patch|minor|major` from a clean
+tree. It branches `release/vX.Y.Z` from an up-to-date `main`, bumps `version`
+in `pyproject.toml`, relocks `uv.lock`, commits and pushes. Then open a
+`chore: release X.Y.Z` PR from that branch and merge it. In Claude Code,
+`/release-patch`, `/release-minor` and `/release-major` do both steps;
+`/release-major` also writes release notes with breaking changes and
+migration into the PR body. The Release workflow runs
 `mise run release:publish`, which tags `vX.Y.Z` and publishes a GitHub
 Release with the wheel and sdist. If that version is already published it
 does nothing, so merging unrelated changes never re-releases. If a release
