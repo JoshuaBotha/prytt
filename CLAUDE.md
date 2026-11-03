@@ -23,7 +23,7 @@ mise is the single entry point for tooling, tasks and env vars, so a task runs t
 - **Workflows call tasks** (`mise run ci`), they don't inline logic. CI installs tools with `jdx/mise-action`. If a workflow step is more than a one-liner, make it a task.
 - **Env vars** go in `mise.toml` `[env]` (or `#MISE env=` on one task) when they apply to the project.
 - Fresh clone: `mise run setup:dev`. Everything CI runs, with `CI=true`: `mise run ci`.
-- Tasks: `setup:dev`, `test`, `test:unit`, `test:acceptance`, `build:dist`, `build:check-wheel`, `release:publish` (CI-only: tags + releases the pyproject version on merge to `main` or manual dispatch), `repo:settings` (GitHub features, merge rules, `main` ruleset; idempotent), `ci`.
+- Tasks: `setup:dev`, `test`, `test:unit`, `test:acceptance`, `build:dist`, `build:check-wheel`, `release:prepare <patch|minor|major>` (release branch + bump + relock + push; skills `/release-patch|minor|major` add the PR), `release:publish` (CI-only: tags + releases the pyproject version on merge to `main` or manual dispatch), `repo:settings` (GitHub features, merge rules, `main` ruleset; idempotent), `ci`.
 
 ## Gotchas from the spikes (don't relearn these)
 

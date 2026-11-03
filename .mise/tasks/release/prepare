@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+#MISE description="Branch release/vX.Y.Z from main, bump the version (patch|minor|major), relock, commit and push"
+#USAGE arg "<bump>" help="patch, minor or major" {
+#USAGE   choices "patch" "minor" "major"
+#USAGE }
+set -euo pipefail
+
+bump=${usage_bump:?}
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "Working tree not clean; commit or stash first" >&2
+  exit 1
+fi
+
+git fetch origin --tags
+git switch main
+git merge --ff-only origin/main
+
+version=$(uv version --bump "$bump" --dry-run --short)
+branch="release/v$version"
+if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+  echo "Tag v$version already exists" >&2
+  exit 1
+fi
+if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+  echo "Branch $branch already exists on origin" >&2
+  exit 1
+fi
+
+git switch -c "$branch"
+# Rewrites pyproject.toml and relocks uv.lock; --no-sync leaves .venv alone
+uv version --bump "$bump" --no-sync
+
+unexpected=$(git status --porcelain | grep -vE '^ M (pyproject\.toml|uv\.lock)$' || true)
+if [ -n "$unexpected" ]; then
+  echo "Unexpected changes after bump:" >&2
+  echo "$unexpected" >&2
+  exit 1
+fi
+
+git add pyproject.toml uv.lock
+git commit -m "chore: release $version"
+git push -u origin "$branch"
+echo "Prepared $branch"
