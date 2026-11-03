@@ -411,16 +411,5 @@ Limits:
 
 ## Developing prytt
 
-```bash
-uv sync            # installs prytt editable, including prytt.pth
-uv run pytest      # SPARK_REMOTE must be unset
-```
-
-### Releasing
-
-Bump `version` in `pyproject.toml` and merge to `main`. The Release workflow
-runs `mise run release:publish`, which tags `vX.Y.Z` and publishes a GitHub
-Release with the wheel and sdist. If that version is already published it
-does nothing, so merging unrelated changes never re-releases. If a release
-run fails, fix the cause and use "Run workflow" on the Release workflow (on
-`main`); a tag without a published release, or a leftover draft, is retried.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, branch and PR conventions,
+tests, and releasing.
