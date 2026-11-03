@@ -2,7 +2,7 @@
 
 Drop-in `awsglue` + PySpark shim so unmodified AWS Glue 6 job scripts run locally on Sail (Rust Spark Connect server), no JVM.
 
-- User docs: `README.md` (behaviour, config, what's real vs stubbed). Future feature design: `prytt-spec-sql-catalog.md` (not in v1).
+- User docs: `README.md` (behaviour, config, what's real vs stubbed). Design record for `db.table` SQL resolution: `prytt-spec-sql-catalog.md` (implemented).
 - Spike findings: `spikes/NOTES.md`. S5 SSO-profile check skipped by decision (S3 passthrough is best-effort).
 - Directory is still named `pritt/`; the project name is `prytt` everywhere else.
 - Before any change: follow `CONTRIBUTING.md` (branch names, PR titles, tests, done = `mise run ci` green), including its "For coding agents" section.
