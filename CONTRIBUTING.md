@@ -122,8 +122,8 @@ commits and pushes. Then open a `chore: release X.Y.Z` PR from that branch
 and merge it. Before releasing, check that every `feat` and `fix` since the
 last tag is in the docs; fix any gap in a `docs` PR first. In Claude Code,
 `/release-patch`, `/release-minor` and `/release-major` do all three steps;
-`/release-major` also writes release notes with breaking changes and
-migration into the PR body. The Release workflow runs
+each writes release notes into the PR body: changes with PR links, breaking
+changes with migration, and the docs check. The Release workflow runs
 `mise run release:publish`, which tags `vX.Y.Z` and publishes a GitHub
 Release with the wheel and sdist. If that version is already published it
 does nothing, so merging unrelated changes never re-releases. If a release
