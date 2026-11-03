@@ -11,7 +11,7 @@ python jobs/bronze_to_silver.py --JOB_NAME local --source_path s3://raw-bucket/o
 ```
 
 ```
-[prytt] INFO prytt 0.1.2, pysail 0.7.3, pyspark-client 4.1.4; sail at sc://127.0.0.1:52341
+[prytt] INFO prytt 0.2.0, pysail 0.7.3, pyspark-client 4.1.4; sail at sc://127.0.0.1:52341
 [prytt] INFO Job.init('local'), bookmarks off
 [prytt] MAP  s3://raw-bucket/orders/ -> /home/me/proj/.prytt/s3/raw-bucket/orders/
 [prytt] WARN Filter not applied locally (v1); data passed through unchanged
@@ -25,7 +25,7 @@ that holds your job scripts:
 
 ```bash
 uv python pin 3.13            # and requires-python = "==3.13.*" in pyproject.toml
-uv add --dev "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.1.2"
+uv add --dev "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.2.0"
 ```
 
 Put input data where the job's `s3://` paths point, under `.prytt/s3/`:
