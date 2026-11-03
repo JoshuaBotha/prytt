@@ -349,7 +349,7 @@ Other design choices, briefly:
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Sail coverage gaps or behaviour differences from Apache Spark | A job passes locally and fails on Glue, or the reverse | Run `examples/glue_selftest_job.py` on both; keep CI on Glue for release-critical jobs. |
-| Sail/pyspark-client version drift | Breakage on upgrade | `pyspark-client>=4.1,<4.2`; `pysail>=0.7.3`; Dependabot; CI on Linux and macOS. |
+| Sail/pyspark-client version drift | Breakage on upgrade | `pyspark-client>=4.1,<4.2`; `pysail>=0.7.3`; Dependabot; CI on Linux, macOS and Windows. |
 | pyspark-client `SparkSession.__del__` deadlock (shared thread pool shut down by GC) | Silent 0% CPU hang | prytt replaces `__del__` to close only its own channel (`tests/unit/test_session_gc.py`); docs ask tests to `stop()` extra sessions. |
 | SQL name rewrite is a heuristic, not a parser | Unusual SQL not rewritten or (rarely) mis-rewritten | Only names in table positions; comments and strings masked; tests in `tests/acceptance/test_catalog_scripts.py`. |
 | Pass-through transforms change results silently | Wrong local output | `WARN` per call; documented; `SMOKE` tier in the self-test job. |
