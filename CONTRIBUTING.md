@@ -28,7 +28,7 @@ mise unsets it for you, so run tests through `mise run` rather than bare
 4. Run `mise run ci` until it passes.
 5. Open a PR with a [Conventional Commit title](#pr-titles-and-commits) and
    fill in the template.
-6. Squash-merge once both CI checks are green.
+6. Squash-merge once all three CI checks (Linux, macOS, Windows) are green.
 
 Keep each PR to one concern. A refactor that a fix needs goes in its own PR
 first.
