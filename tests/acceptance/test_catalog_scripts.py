@@ -5,6 +5,8 @@ import subprocess
 import sys
 import textwrap
 
+import pytest
+
 TIMEOUT = 180  # first Sail start after install can take ~30 s
 
 PYPROJECT = """
@@ -29,19 +31,21 @@ options = { withHeader = true }
 """
 
 
-def run_script(tmp_path, code, extra_toml=""):
+def run_script(tmp_path, code, extra_toml="", remote=None):
     (tmp_path / "pyproject.toml").write_text(PYPROJECT + extra_toml)
     orders = tmp_path / "s3" / "raw" / "orders"
-    orders.mkdir(parents=True)
+    orders.mkdir(parents=True, exist_ok=True)
     (orders / "a.json").write_text('{"id": 1, "customer": 10}\n{"id": 2, "customer": 20}\n')
     customers = tmp_path / "s3" / "raw" / "customers"
-    customers.mkdir(parents=True)
+    customers.mkdir(parents=True, exist_ok=True)
     (customers / "a.csv").write_text("customer,name\n10,ann\n20,bob\n")
     script = tmp_path / "job.py"
     script.write_text(textwrap.dedent(code))
     env = {k: v for k, v in os.environ.items() if not k.startswith("PRYTT_")}
     for name in ("SPARK_REMOTE", "CI", "RUST_LOG"):
         env.pop(name, None)
+    if remote:
+        env["SPARK_REMOTE"] = remote
     proc = subprocess.run(
         [sys.executable, str(script)], capture_output=True, text=True, env=env, cwd=tmp_path, timeout=TIMEOUT
     )
@@ -155,3 +159,50 @@ def test_non_spark_script_loads_nothing_from_spark_or_the_catalog(tmp_path):
 
     assert proc.stdout.strip() == "[]"
     assert proc.stderr == ""
+
+
+@pytest.fixture(scope="module")
+def external_server():
+    """A Sail server prytt did not start, as a script with ``SPARK_REMOTE`` set sees it."""
+    from pysail.spark import SparkConnectServer
+
+    sail = SparkConnectServer(ip="127.0.0.1", port=0)
+    sail.start(background=True)
+    host, port = sail.listening_address
+    yield f"sc://{host}:{port}"
+    sail.stop()
+
+
+READ_BY_GLUE_NAME = """
+    from pyspark.sql import SparkSession
+    spark = SparkSession.builder.getOrCreate()
+    print(sorted(r.id for r in spark.sql("select id from raw_db.orders").collect()))
+    """
+
+
+def test_mapped_table_reads_by_glue_name_on_external_server(tmp_path, external_server):
+    proc = run_script(tmp_path, READ_BY_GLUE_NAME, remote=external_server)
+
+    assert f"using external server SPARK_REMOTE={external_server}" in proc.stderr
+    assert "sail at" not in proc.stderr
+    assert proc.stdout.strip().splitlines()[-1] == "[1, 2]"
+
+
+def test_registration_repeats_without_error_on_external_server(tmp_path, external_server):
+    first = run_script(tmp_path, READ_BY_GLUE_NAME, remote=external_server)
+    second = run_script(
+        tmp_path,
+        """
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder.getOrCreate()
+        other = SparkSession.builder.create()
+        print(sorted(r.id for r in other.table("raw_db.orders").collect()))
+        other.stop()
+        print(sorted(r.id for r in spark.sql("select id from raw_db.orders").collect()))
+        """,
+        remote=external_server,
+    )
+
+    assert first.stdout.strip().splitlines()[-1] == "[1, 2]"
+    assert second.stdout.strip().splitlines()[-2:] == ["[1, 2]", "[1, 2]"]
+    assert "WARN catalog table raw_db.orders skipped" not in first.stderr + second.stderr
