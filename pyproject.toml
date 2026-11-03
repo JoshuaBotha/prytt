@@ -1,6 +1,6 @@
 [project]
 name = "prytt"
-version = "0.2.0"
+version = "0.3.0"
 description = "Drop-in awsglue + PySpark shim: run unmodified AWS Glue 6 job scripts locally on Sail."
 requires-python = ">=3.13"
 dependencies = [
