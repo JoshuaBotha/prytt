@@ -29,7 +29,7 @@ options = { withHeader = true }
 """
 
 
-def run_script(tmp_path, code, extra_toml=""):
+def run_script(tmp_path, code, extra_toml="", ok=True):
     (tmp_path / "pyproject.toml").write_text(PYPROJECT + extra_toml)
     orders = tmp_path / "s3" / "raw" / "orders"
     orders.mkdir(parents=True)
@@ -45,7 +45,8 @@ def run_script(tmp_path, code, extra_toml=""):
     proc = subprocess.run(
         [sys.executable, str(script)], capture_output=True, text=True, env=env, cwd=tmp_path, timeout=TIMEOUT
     )
-    assert proc.returncode == 0, proc.stderr
+    if ok:
+        assert proc.returncode == 0, proc.stderr
     return proc
 
 
@@ -155,3 +156,76 @@ def test_non_spark_script_loads_nothing_from_spark_or_the_catalog(tmp_path):
 
     assert proc.stdout.strip() == "[]"
     assert proc.stderr == ""
+
+
+HINT = '[tool.prytt.catalog."sales_db.refunds"]'
+
+
+def test_unmapped_table_in_sql_exits_with_toml_hint(tmp_path):
+    proc = run_script(
+        tmp_path,
+        """
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder.getOrCreate()
+        spark.sql("select * from sales_db.refunds").collect()
+        """,
+        ok=False,
+    )
+
+    assert proc.returncode != 0
+    assert "TABLE_OR_VIEW_NOT_FOUND" in proc.stderr
+    assert HINT in proc.stderr
+    assert 'path = "s3://<bucket>/<prefix>/refunds/"' in proc.stderr
+
+
+def test_unmapped_table_in_spark_table_exits_with_toml_hint(tmp_path):
+    proc = run_script(
+        tmp_path,
+        """
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder.getOrCreate()
+        spark.table("sales_db.refunds").show()
+        """,
+        ok=False,
+    )
+
+    assert proc.returncode != 0
+    assert "TABLE_OR_VIEW_NOT_FOUND" in proc.stderr
+    assert HINT in proc.stderr
+
+
+def test_script_created_table_errors_pass_through_without_hint(tmp_path):
+    proc = run_script(
+        tmp_path,
+        """
+        from pyspark.sql import SparkSession
+        from pyspark.errors import AnalysisException
+        spark = SparkSession.builder.getOrCreate()
+        spark.sql("create database scratch_db")
+        spark.sql("create table scratch_db.x (a int) using parquet")
+        for query in ("select no_such_column from scratch_db.x", "select * from scratch_db.x join no_such_view"):
+            try:
+                spark.sql(query).collect()
+            except AnalysisException as exc:
+                print("hint" if "prytt" in str(exc) + str(getattr(exc, "__notes__", "")) else "no hint")
+        """,
+    )
+
+    assert proc.stdout.strip().splitlines()[-2:] == ["no hint", "no hint"]
+
+
+def test_on_missing_empty_does_not_apply_to_sql(tmp_path):
+    proc = run_script(
+        tmp_path,
+        """
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder.getOrCreate()
+        spark.sql("select * from sales_db.refunds").collect()
+        """,
+        extra_toml='\n[tool.prytt.catalog]\non_missing = "empty"\n',
+        ok=False,
+    )
+
+    assert proc.returncode != 0
+    assert HINT in proc.stderr
+    assert 'on_missing = "empty" to read it' not in proc.stderr

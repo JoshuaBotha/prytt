@@ -36,6 +36,7 @@ mise is the single entry point for tooling, tasks and env vars, so a task runs t
 - Always set `spark.sql.warehouse.dir` to an absolute path, or Delta writes `./spark-warehouse` into cwd and Iceberg CTAS fails.
 - Sail catalogs are in-memory per session: re-register `glue_catalog` / mapped tables on every new session.
 - Sail 0.7.3 table, database and temp-view names are **case-sensitive** (`spark.sql.caseSensitive=false` has no effect). prytt rewrites mapped `db.table` names in `spark.sql`/`spark.table` (`paths._wrap_table_names`).
+- Over Spark Connect, `spark.sql("SELECT ...")` and `spark.table(...)` are **lazy**: a missing table raises only at the action (`collect`, `show`), not in the call (classic Spark/Glue raises eagerly). To catch it in a wrapper, force analysis with `df.schema`. Sail's not-found error names only the last part (`Table or view not found: orders`).
 - Sail registers `CREATE TABLE ... USING parquet|json|csv LOCATION '<missing dir>'` (and a temp view over it) without error, as an empty table with no columns. Only delta fails. Check for data yourself before registering.
 - `functools.wraps` copies the wrapped function's `__dict__`, so a `__prytt_wrapped__`-style flag on an inner wrapper shows up on the outer one. Use a distinct flag per wrapper (iceberg checks `__prytt_wrapped__` on `spark.sql`).
 - `mapInPandas` under pandas 3: `NULL` strings arrive as `NaN` (convert to `None`); worker exceptions arrive as empty `PythonException()` (re-raise with traceback).
