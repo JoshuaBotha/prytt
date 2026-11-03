@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Branch release/vX.Y.Z from main, bump the version (patch|minor|major), relock, commit and push"
+#MISE description="Branch release/vX.Y.Z from main, bump the version (patch|minor|major), relock, update doc version refs, commit and push"
 #USAGE arg "<bump>" help="patch, minor or major" {
 #USAGE   choices "patch" "minor" "major"
 #USAGE }
@@ -16,6 +16,7 @@ git fetch origin --tags
 git switch main
 git merge --ff-only origin/main
 
+old_version=$(uv version --short)
 version=$(uv version --bump "$bump" --dry-run --short)
 branch="release/v$version"
 if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
@@ -31,14 +32,20 @@ git switch -c "$branch"
 # Rewrites pyproject.toml and relocks uv.lock; --no-sync leaves .venv alone
 uv version --bump "$bump" --no-sync
 
-unexpected=$(git status --porcelain | grep -vE '^ M (pyproject\.toml|uv\.lock)$' || true)
+# Install commands, wheel names and the startup log line in the user docs
+# name the release; docs/adr and the rest of docs/ are left as written
+OLD="$old_version" NEW="$version" perl -pi -e \
+  's/(prytt(?:\.git\@v|-| ))\Q$ENV{OLD}\E\b/$1$ENV{NEW}/g' \
+  README.md docs/user/*.md
+
+unexpected=$(git status --porcelain | grep -vE '^ M (pyproject\.toml|uv\.lock|README\.md|docs/user/[^/]+\.md)$' || true)
 if [ -n "$unexpected" ]; then
   echo "Unexpected changes after bump:" >&2
   echo "$unexpected" >&2
   exit 1
 fi
 
-git add pyproject.toml uv.lock
+git add pyproject.toml uv.lock README.md docs/user
 git commit -m "chore: release $version"
 git push -u origin "$branch"
 echo "Prepared $branch"
