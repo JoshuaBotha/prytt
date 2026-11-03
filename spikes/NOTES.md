@@ -14,7 +14,7 @@ Clean venv (not the project `.venv`). Scripts in this folder; each runs standalo
 | S5 | Sail reads `s3://` directly (AWS Rust SDK credential chain). Anonymous public read works. SSO profile **not tested — skipped by decision (2026-11-01)**. | Passthrough mode ships as best-effort, unverified for SSO profiles. |
 | S6 | Scalar UDF, `pandas_udf`, `mapInPandas`, `mapInArrow`, `applyInPandas` all work. | DynamicFrame `filter`/`map` v2 via `mapInPandas` is viable. Two caveats below. |
 | S7 | Delta **and** Iceberg: write, append, read, `CREATE TABLE ... LOCATION`, `INSERT`, `MERGE INTO`, CTAS, `saveAsTable`, `writeTo().append()`. A `glue_catalog` catalog can be declared via `SAIL_CATALOG__LIST`. | **Positive → T10 in scope.** Details below. |
-| S-SQL1 (future spec) | `CREATE DATABASE raw_db` + `CREATE TABLE raw_db.orders USING json LOCATION ...` works; `spark.sql` and `spark.table` resolve `raw_db.orders`. | Approach 1 (real DBs + external tables) in `prytt-spec-sql-catalog.md` works. |
+| S-SQL1 (future spec) | `CREATE DATABASE raw_db` + `CREATE TABLE raw_db.orders USING json LOCATION ...` works; `spark.sql` and `spark.table` resolve `raw_db.orders`. | Approach 1 (real DBs + external tables) works; see `docs/adr/0003-mapped-tables-as-sail-external-tables.md`. |
 
 ## S1: imports under pyspark-client only (`s1_imports.py`)
 
@@ -111,4 +111,4 @@ Caveats for DynamicFrame `filter` / `map` v2:
 - §9 DynamicFrame `filter`/`map`: v2 via `mapInPandas` confirmed viable; add NaN→None and traceback re-raise requirements.
 - §10 Iceberg: T10 in scope; add `SAIL_CATALOG__LIST`, absolute `spark.sql.warehouse.dir`, re-register-on-start.
 - §10 S3 passthrough: viable; needs region; SSO check skipped, mode is best-effort.
-- `prytt-spec-sql-catalog.md`: S-SQL1 positive → approach 1.
+- SQL catalog design note (now `docs/adr/0003-mapped-tables-as-sail-external-tables.md`): S-SQL1 positive → approach 1.

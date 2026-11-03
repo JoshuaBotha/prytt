@@ -22,7 +22,9 @@ mise unsets it for you, so run tests through `mise run` rather than bare
 
 1. Branch from an up-to-date `main` (see [Branches](#branches)).
 2. Write a failing test first, then make it pass.
-3. Update `README.md` in the same PR when user-visible behaviour changes.
+3. Update the docs in the same PR when user-visible behaviour changes
+   (`docs/user/`, and `README.md` if the quick start changes). The
+   [developer guide](docs/developer/guide.md#docs) says which page covers what.
 4. Run `mise run ci` until it passes.
 5. Open a PR with a [Conventional Commit title](#pr-titles-and-commits) and
    fill in the template.
@@ -45,7 +47,7 @@ docs/iceberg-limitations
 | ---------- | -------------------------------------------------------- |
 | `feat`     | New behaviour users can see                              |
 | `fix`      | A bug fix                                                |
-| `docs`     | Docs only (`README.md`, this file, `CLAUDE.md`)          |
+| `docs`     | Docs only (`README.md`, `docs/`, this file, `CLAUDE.md`) |
 | `test`     | Tests only, no behaviour change                          |
 | `refactor` | Code change with no behaviour change                     |
 | `perf`     | A speed or memory improvement                            |
@@ -99,8 +101,8 @@ them readable for reviewers.
 - Code under `_bootstrap` / `_hooks` runs at every interpreter start: stdlib
   only, with the import limits listed in `CLAUDE.md`.
 - When a Glue feature can't work locally, log it and pass data through
-  rather than failing (unless strict mode), and add it to "What's real and
-  what's stubbed" in `README.md`.
+  rather than failing (unless strict mode), and add it to
+  `docs/user/compatibility.md`.
 - Pin GitHub Actions to a full commit SHA with a version comment.
   Dependabot keeps actions and `uv` dependencies current.
 

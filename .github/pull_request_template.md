@@ -9,5 +9,5 @@
 - [ ] Branch named `<type>/<short-description>`
 - [ ] Test written first and seen failing (bug fixes: regression test)
 - [ ] `mise run ci` passes locally
-- [ ] `README.md` updated if user-visible behaviour changed
+- [ ] Docs (`docs/user/`, `README.md`) updated if user-visible behaviour changed
 - [ ] New gotchas added to `CLAUDE.md`
