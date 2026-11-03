@@ -283,11 +283,25 @@ options = { partitionKeys = ["country"] }   # used by write_dynamic_frame.from_c
 - Reading an unmapped table raises an error that contains the exact TOML to
   add. With `on_missing = "empty"`, the read logs a `WARN` and returns an
   empty frame instead. Writing to an unmapped table always raises.
-- Every mapped table is also registered as a **temp view** named `db_table`
-  (e.g. `raw_db_orders`), so `spark.sql("select * from raw_db_orders")` works.
-  Views are built when the session is created. A table that has no data yet
-  is skipped with a `WARN` and gets no view. `spark.sql("... raw_db.orders
-  ...")` with a dotted name is **not** resolved through the map in v1.
+- Every mapped table is also a **registered table**, so a script can use its
+  Glue name: `spark.table("raw_db.orders")` and
+  `spark.sql("select * from raw_db.orders")` read the mapped path with the
+  configured format and options. Joins across mapped tables work, and the
+  name is case-insensitive (`Raw_DB.Orders` works too).
+- Every mapped table is also a **temp view** named `db_table` (e.g.
+  `raw_db_orders`), so `spark.sql("select * from raw_db_orders")` still works.
+- Tables and views are registered when the session is created, and the log
+  shows one line per table:
+  `MAP  raw_db.orders -> <local path> (table raw_db.orders, view raw_db_orders)`.
+  A table that has no data yet is skipped with a `WARN`, so neither name
+  resolves for it in that session, even after the job writes it.
+- Limits: `on_missing = "empty"` does not apply to SQL reads; writes through
+  SQL (`INSERT INTO raw_db.orders`, `saveAsTable`) are not mapped; a mapped
+  table is not reachable as `glue_catalog.raw_db.orders` (that catalog belongs
+  to Iceberg); a script's own `CREATE DATABASE` / `CREATE TABLE` of a mapped
+  name fails with Spark's "already exists" error. Case-insensitive lookup
+  covers unquoted names only: write `` `raw_db`.`orders` `` in the
+  configured case.
 
 ### S3 passthrough (best-effort)
 
