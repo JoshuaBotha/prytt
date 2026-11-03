@@ -207,7 +207,7 @@ docstring) after changes to behaviour that real Glue also has.
 
 1. Bump in `pyproject.toml` (`pysail`, `pyspark-client` stays `<4.2` until
    tested) and `uv lock`.
-2. `mise run ci` on both macOS and Linux (CI does both).
+2. `mise run ci` green on Linux, macOS and Windows (CI runs all three).
 3. Re-check the gotchas in CLAUDE.md that name a version (case sensitivity,
    empty-table registration, lazy errors, `__del__`), and the limits in
    [Compatibility](../user/compatibility.md). Update any that changed.

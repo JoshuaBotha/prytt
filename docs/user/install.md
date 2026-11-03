@@ -9,11 +9,12 @@ already there.
 | Need | Why |
 |---|---|
 | Python **3.13** | The version AWS Glue 6 runs. prytt's `requires-python` is `>=3.13`. |
-| macOS or Linux | The platforms CI tests (`ubuntu-latest`, `macos-latest`). |
+| macOS, Linux or Windows | The platforms CI tests (`ubuntu-latest`, `macos-latest`, `windows-latest`). |
 | [uv](https://docs.astral.sh/uv/) (recommended) or pip | To install from git. |
 | No JVM, no Docker | Sail is a Rust binary inside the `pysail` wheel. |
 
-Windows is not tested.
+On Windows, prytt logs and passes Spark local paths with forward slashes
+(`C:/Users/...`).
 
 ## Add prytt to a project
 
