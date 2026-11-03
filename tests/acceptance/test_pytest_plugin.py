@@ -29,7 +29,7 @@ def test_s3_root_is_a_tmp_dir_wired_into_s3_root_config(run):
         def test_root(s3_root, tmp_path):
             assert s3_root.is_dir()
             assert str(s3_root).startswith(str(tmp_path))
-            assert paths.map_path("s3://bucket/key.json") == str(s3_root.resolve() / "bucket" / "key.json")
+            assert paths.map_path("s3://bucket/key.json") == (s3_root.resolve() / "bucket" / "key.json").as_posix()
 
         def test_each_test_gets_its_own_root(s3_root):
             assert config.get().s3_root == str(s3_root)
