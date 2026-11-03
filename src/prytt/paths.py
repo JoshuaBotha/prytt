@@ -107,7 +107,9 @@ def map_path(uri: str, for_write: bool = False) -> str:
         _check_passthrough(cfg)
         return uri
     local_path = Path(cfg.s3_root).resolve() / key
-    local = str(local_path)
+    # Forward slashes on every OS: Spark takes C:/... on Windows, and a
+    # backslash would need escaping in SQL literals and mix with the key's /.
+    local = local_path.as_posix()
     if key.endswith("/"):
         local += "/"
     log("MAP", f"{uri} -> {local}")

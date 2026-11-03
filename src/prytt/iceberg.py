@@ -80,7 +80,7 @@ def _subdirs(path: Path) -> list:
 
 
 def _create_database(spark, warehouse: Path, name: str) -> None:
-    location = literal(warehouse / name)
+    location = literal((warehouse / name).as_posix())
     spark.sql(f"CREATE DATABASE IF NOT EXISTS {CATALOG}.{ident(name)} LOCATION {location}")
 
 
@@ -98,7 +98,7 @@ def _rewrite_create_database(query: str, warehouse: Path) -> str:
         return query
     group = 1 if seen.group(1) is not None else 2
     db = query[seen.start(group) : seen.end(group)].replace("``", "`")
-    location = warehouse / db
+    location = (warehouse / db).as_posix()  # as paths.map_path: no backslashes in SQL
 
     end = len(masked)
     while end and (masked[end - 1].isspace() or masked[end - 1] == ";"):
@@ -143,7 +143,7 @@ def _wrap_sql(spark, warehouse: Path) -> None:
 
 def setup_session(spark) -> None:
     warehouse = config.get().iceberg_warehouse
-    spark.conf.set("spark.sql.warehouse.dir", str(warehouse))
+    spark.conf.set("spark.sql.warehouse.dir", warehouse.as_posix())
 
     # Sail reads an unknown ``glue_catalog.x`` as a nested namespace, so ask.
     if CATALOG not in {c.name for c in spark.catalog.listCatalogs()}:
@@ -173,9 +173,9 @@ def setup_session(spark) -> None:
             try:
                 spark.sql(
                     f"CREATE TABLE IF NOT EXISTS {CATALOG}.{ident(db)}.{ident(table_dir.name)} "
-                    f"USING iceberg LOCATION {literal(table_dir)}"
+                    f"USING iceberg LOCATION {literal(table_dir.as_posix())}"
                 )
             except Exception as exc:
                 log("WARN", f"{name} skipped: {first_line(exc)}")
                 continue
-            log("MAP", f"{name} -> {table_dir}")
+            log("MAP", f"{name} -> {table_dir.as_posix()}")
