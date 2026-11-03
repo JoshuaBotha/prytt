@@ -10,6 +10,7 @@ disable-model-invocation: true
    - **Summary**: two or three sentences on what this major version is.
    - **Breaking changes**: each break (`!` titles, behaviour or config changes, dropped support), what fails for an existing user, and the migration step. Say so plainly if there are none.
    - **Highlights**: new features and notable fixes, one line each, with PR links.
+   - **Docs check**: the result of step 1, naming where each `feat`/`fix` is documented, and that the version refs now say X.Y.Z.
    - **Upgrade**: the install command for the new tag and any config changes to make.
    - **Merge Danger**: merging tags `vX.Y.Z` and publishes the GitHub Release; a published release can't be unpublished cleanly.
    - End with the attribution line from your system prompt, if one is given.
