@@ -1,9 +1,6 @@
 # Prytt - a drop-in local Glue replacement
 
-[![CI](https://github.com/JoshuaBotha/prytt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JoshuaBotha/prytt/actions/workflows/ci.yml?query=branch%3Amain)
-[![Release](https://img.shields.io/github/v/release/JoshuaBotha/prytt)](https://github.com/JoshuaBotha/prytt/releases/latest)
-[![Python 3.13](https://img.shields.io/badge/python-3.13-blue)](docs/user/install.md#requirements)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![CI](https://github.com/JoshuaBotha/prytt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JoshuaBotha/prytt/actions/workflows/ci.yml?query=branch%3Amain) [![Release](https://img.shields.io/github/v/release/JoshuaBotha/prytt)](https://github.com/JoshuaBotha/prytt/releases/latest) [![Python 3.13](https://img.shields.io/badge/python-3.13-blue)](docs/user/install.md#requirements) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Run unmodified AWS Glue 6 job scripts on your laptop. prytt is a drop-in
 `awsglue` + PySpark shim backed by [Sail](https://github.com/lakehq/sail), a
