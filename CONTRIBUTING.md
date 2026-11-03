@@ -116,9 +116,12 @@ breaking change bumps the minor version, everything else the patch version.
 
 To release, run `mise run release:prepare patch|minor|major` from a clean
 tree. It branches `release/vX.Y.Z` from an up-to-date `main`, bumps `version`
-in `pyproject.toml`, relocks `uv.lock`, commits and pushes. Then open a
-`chore: release X.Y.Z` PR from that branch and merge it. In Claude Code,
-`/release-patch`, `/release-minor` and `/release-major` do both steps;
+in `pyproject.toml`, relocks `uv.lock`, updates the prytt version in
+`README.md` and `docs/user/` (install URLs, wheel name, startup log line),
+commits and pushes. Then open a `chore: release X.Y.Z` PR from that branch
+and merge it. Before releasing, check that every `feat` and `fix` since the
+last tag is in the docs; fix any gap in a `docs` PR first. In Claude Code,
+`/release-patch`, `/release-minor` and `/release-major` do all three steps;
 `/release-major` also writes release notes with breaking changes and
 migration into the PR body. The Release workflow runs
 `mise run release:publish`, which tags `vX.Y.Z` and publishes a GitHub
