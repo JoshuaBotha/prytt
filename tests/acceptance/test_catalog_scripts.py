@@ -280,3 +280,93 @@ def test_on_missing_empty_does_not_apply_to_sql(tmp_path):
     assert proc.returncode != 0
     assert HINT in proc.stderr
     assert 'on_missing = "empty" to read it' not in proc.stderr
+
+
+def test_column_reference_shaped_like_a_mapped_name_is_left_alone(tmp_path):
+    proc = run_script(
+        tmp_path,
+        """
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder.getOrCreate()
+        print(spark.sql("select RAW_DB.ORDERS from (select named_struct('ORDERS', 1) as RAW_DB)").columns)
+        """,
+    )
+
+    assert proc.stdout.strip().splitlines()[-1] == "['ORDERS']"
+
+
+def test_missing_view_with_qualified_column_gets_no_hint(tmp_path):
+    proc = run_script(
+        tmp_path,
+        """
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder.getOrCreate()
+        spark.sql("select t.x from x t").collect()
+        """,
+        ok=False,
+    )
+
+    assert "TABLE_OR_VIEW_NOT_FOUND" in proc.stderr
+    assert "prytt: catalog table" not in proc.stderr
+
+
+def test_two_unmapped_tables_with_one_name_get_no_misleading_hint(tmp_path):
+    proc = run_script(
+        tmp_path,
+        """
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder.getOrCreate()
+        spark.sql("select * from a_db.orders join b_db.orders").collect()
+        """,
+        ok=False,
+    )
+
+    assert "TABLE_OR_VIEW_NOT_FOUND" in proc.stderr
+    # Spark's error names only ``orders``, so naming one database could be wrong.
+    assert ('catalog."a_db.orders"' in proc.stderr) == ('catalog."b_db.orders"' in proc.stderr)
+
+
+def test_backtick_quoted_unmapped_name_in_spark_table_gets_toml_hint(tmp_path):
+    proc = run_script(
+        tmp_path,
+        """
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder.getOrCreate()
+        print(sorted(r.id for r in spark.table("`raw_db`.`orders`").collect()))
+        spark.table("`sales_db`.`refunds`").show()
+        """,
+        ok=False,
+    )
+
+    assert proc.stdout.strip().splitlines()[-1] == "[1, 2]"
+    assert HINT in proc.stderr
+
+
+def test_table_whose_registration_fails_leaves_no_view_behind(tmp_path):
+    proc = run_script(
+        tmp_path,
+        """
+        from pyspark.errors import AnalysisException
+        from pyspark.sql.connect.session import SparkSession as Connect
+
+        real_sql = Connect.sql
+
+        def failing_create_table(self, query, *args, **kwargs):
+            if query.lstrip().upper().startswith("CREATE TABLE"):
+                raise AnalysisException(message="create table refused")
+            return real_sql(self, query, *args, **kwargs)
+
+        Connect.sql = failing_create_table  # the server refuses the catalog DDL
+
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder.getOrCreate()
+        try:
+            spark.sql("select * from raw_db_orders").collect()
+            print("view registered")
+        except AnalysisException:
+            print("no view")
+        """,
+    )
+
+    assert "WARN catalog table raw_db.orders skipped: create table refused" in proc.stderr
+    assert proc.stdout.strip().splitlines()[-1] == "no view"

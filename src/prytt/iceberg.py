@@ -36,6 +36,7 @@ import re
 from pathlib import Path
 
 from prytt import config
+from prytt.sqltext import ident, literal, mask
 from prytt.stub import first_line, log
 
 CATALOG = "glue_catalog"
@@ -56,14 +57,6 @@ _LOCATION = re.compile(r"\bLOCATION\b", re.IGNORECASE)
 def set_sail_catalog_env() -> None:
     os.environ.setdefault("SAIL_CATALOG__LIST", SAIL_CATALOG_LIST)
     os.environ.setdefault("SAIL_CATALOG__DEFAULT_CATALOG", "sail")
-
-
-def _ident(name: str) -> str:
-    return "`" + name.replace("`", "``") + "`"
-
-
-def _literal(path) -> str:
-    return "'" + str(path).replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
 def _is_iceberg_table(path: Path) -> bool:
@@ -87,51 +80,8 @@ def _subdirs(path: Path) -> list:
 
 
 def _create_database(spark, warehouse: Path, name: str) -> None:
-    location = _literal(warehouse / name)
-    spark.sql(f"CREATE DATABASE IF NOT EXISTS {CATALOG}.{_ident(name)} LOCATION {location}")
-
-
-def _mask(sql: str) -> str:
-    """``sql`` with the same length, but comments and string literal contents
-    blanked to spaces and backtick identifier contents to ``x``, so keywords
-    and ``;`` found in the result are real SQL tokens."""
-    out = list(sql)
-    n = len(sql)
-
-    def blank(start, end, char=" "):
-        for k in range(start, end):
-            if out[k] != "\n":
-                out[k] = char
-
-    i = 0
-    while i < n:
-        if sql.startswith("--", i):
-            end = sql.find("\n", i)
-            end = n if end == -1 else end
-            blank(i, end)
-        elif sql.startswith("/*", i):
-            end = sql.find("*/", i + 2)
-            end = n if end == -1 else end + 2
-            blank(i, end)
-        elif sql[i] in "'\"`":
-            quote = sql[i]
-            end = i + 1
-            while end < n:
-                if quote != "`" and sql[end] == "\\":
-                    end += 2
-                elif sql[end] == quote and sql.startswith(quote * 2, end):
-                    end += 2  # doubled quote inside the literal
-                elif sql[end] == quote:
-                    break
-                else:
-                    end += 1
-            end = min(end, n)
-            blank(i + 1, end, "x" if quote == "`" else " ")
-            end += 1
-        else:
-            end = i + 1
-        i = end
-    return "".join(out)
+    location = literal(warehouse / name)
+    spark.sql(f"CREATE DATABASE IF NOT EXISTS {CATALOG}.{ident(name)} LOCATION {location}")
 
 
 def _rewrite_create_database(query: str, warehouse: Path) -> str:
@@ -142,7 +92,7 @@ def _rewrite_create_database(query: str, warehouse: Path) -> str:
     trailing ``;`` are handled. Anything else that creates a ``glue_catalog``
     database is sent as is with a ``WARN``.
     """
-    masked = _mask(query)
+    masked = mask(query)
     seen = _CREATE_DB.search(masked)
     if seen is None:
         return query
@@ -158,11 +108,11 @@ def _rewrite_create_database(query: str, warehouse: Path) -> str:
         log(
             "WARN",
             f"{CATALOG} CREATE DATABASE not rewritten (multi-statement SQL or not at the start): "
-            f"add LOCATION {_literal(location)} yourself so later runs find database {db}'s tables",
+            f"add LOCATION {literal(location)} yourself so later runs find database {db}'s tables",
         )
         return query
     if _LOCATION.search(masked, seen.end(), end):
-        if _literal(location) in query[seen.end() : end]:
+        if literal(location) in query[seen.end() : end]:
             return query  # already where prytt looks for it (also prytt's own re-registration)
         log(
             "WARN",
@@ -173,7 +123,7 @@ def _rewrite_create_database(query: str, warehouse: Path) -> str:
 
     tail = "".join(c for c, m in zip(query[end:], masked[end:]) if m != ";").rstrip()
     log("MAP", f"{CATALOG} database {db} -> {location}")
-    return f"{query[:end]} LOCATION {_literal(location)}{tail}"
+    return f"{query[:end]} LOCATION {literal(location)}{tail}"
 
 
 def _wrap_sql(spark, warehouse: Path) -> None:
@@ -222,8 +172,8 @@ def setup_session(spark) -> None:
             name = f"{CATALOG}.{db}.{table_dir.name}"
             try:
                 spark.sql(
-                    f"CREATE TABLE IF NOT EXISTS {CATALOG}.{_ident(db)}.{_ident(table_dir.name)} "
-                    f"USING iceberg LOCATION {_literal(table_dir)}"
+                    f"CREATE TABLE IF NOT EXISTS {CATALOG}.{ident(db)}.{ident(table_dir.name)} "
+                    f"USING iceberg LOCATION {literal(table_dir)}"
                 )
             except Exception as exc:
                 log("WARN", f"{name} skipped: {first_line(exc)}")

@@ -292,6 +292,12 @@ options = { partitionKeys = ["country"] }   # used by write_dynamic_frame.from_c
   that call with Spark's "table or view not found" error, and the traceback
   ends with the TOML to add. The hint is an exception note, so it is not part
   of `str(e)`. Tables the script creates itself get Spark's plain error.
+  prytt tells them apart by name only, so a table the script created and
+  then dropped, or a typo in a database the script owns, also gets the hint.
+  Only names in a table position (after `FROM`, `JOIN`, `TABLE`, `INTO`,
+  `UPDATE`, `USING`, or in a `FROM` list) are looked up, and if two
+  unmapped names share a table name (`a.orders`, `b.orders`) there is no
+  hint, because Spark's error doesn't say which one is missing.
 - Every mapped table is also a **temp view** named `db_table` (e.g.
   `raw_db_orders`), so `spark.sql("select * from raw_db_orders")` still works.
   View names are case-sensitive.
@@ -299,8 +305,11 @@ options = { partitionKeys = ["country"] }   # used by write_dynamic_frame.from_c
   shows one line per table:
   `MAP  raw_db.orders -> <local path> (table raw_db.orders, view raw_db_orders)`.
   A table that has no data yet is skipped with a `WARN`, so neither name
-  resolves for it in that session, even after the job writes it. (In S3
-  passthrough mode prytt can't check, so you get Spark's error instead.)
+  resolves for it in that session, even after the job writes it. In S3
+  passthrough mode prytt can't check, so the table is registered anyway;
+  for a prefix with no data Sail (as it does for a local path) gives an
+  empty table with no columns: `select *` returns no rows and naming a
+  column fails with "cannot resolve attribute" (unverified against real S3).
 - With `SPARK_REMOTE` set, the tables are registered on that server too, so
   it must be able to read the mapped local paths. Registration uses
   `IF NOT EXISTS`, so a persistent catalog doesn't fail on a second run, but
@@ -310,9 +319,7 @@ options = { partitionKeys = ["country"] }   # used by write_dynamic_frame.from_c
   SQL (`INSERT INTO raw_db.orders`, `saveAsTable`) are not mapped; a mapped
   table is not reachable as `glue_catalog.raw_db.orders` (that catalog belongs
   to Iceberg); a script's own `CREATE DATABASE` / `CREATE TABLE` of a mapped
-  name fails with Spark's "already exists" error. Case-insensitive lookup
-  covers unquoted names only: write `` `raw_db`.`orders` `` in the
-  configured case.
+  name fails with Spark's "already exists" error.
 
 ### S3 passthrough (best-effort)
 

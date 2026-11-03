@@ -1,7 +1,8 @@
 """Read and write DataFrames at Glue-style locations.
 
-Used by ``awsglue.context`` (readers/writers); kept in ``prytt`` so the
-logic has no ``awsglue`` dependency.
+Shared by ``awsglue.context`` (readers/writers) and
+``prytt.paths.register_mapped_tables`` (catalog temp views), so ``prytt``
+never imports ``awsglue``.
 
 Interface:
 
