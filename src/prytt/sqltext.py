@@ -16,10 +16,18 @@ Interface:
   ``UPDATE`` or ``USING``, or after a ``,`` in a ``FROM`` list. A heuristic,
   not a parser: column references (``alias.col``), struct fields, numbers
   and names inside comments or strings are never returned.
+- ``statements(sql) -> [[Token]]``: ``sql`` split at ``;`` into statements,
+  each a list of tokens outside comments: ``Token(kind, text, value, word)``
+  with ``kind`` ``"name"`` (a multi-part name or a keyword; ``value`` is its
+  parts, backticks removed), ``"string"`` (``value`` is the unescaped
+  contents) or ``"punct"`` (``(``, ``)`` or ``,``). ``word`` is the
+  upper-cased text of an unquoted one-part name (keywords), else ``""``.
+  Other punctuation and operators are dropped.
 """
 
 import bisect
 import re
+from typing import NamedTuple
 
 _PART = r"(?:`(?:[^`]|``)*`|\w+)"
 _NAME = re.compile(rf"(?<![\w.`]){_PART}(?:\s*\.\s*{_PART})*")
@@ -144,3 +152,38 @@ def table_refs(sql: str) -> list:
         if _in_table_position(words, index):
             refs.append((m.start(), m.end(), [_unquote(p) for p in parts]))
     return refs
+
+
+class Token(NamedTuple):
+    kind: str
+    text: str
+    value: object
+    word: str
+
+
+_STATEMENT_TOKEN = re.compile(rf"'[^']*'|\"[^\"]*\"|{_NAME.pattern}|[(),;]")
+
+
+def _unescape(text: str) -> str:
+    quote, body = text[0], text[1:-1]
+    return re.sub(r"\\(.)", r"\1", body.replace(quote * 2, quote))
+
+
+def statements(sql: str) -> list:
+    masked = mask(sql)
+    out, current = [], []
+    for m in _STATEMENT_TOKEN.finditer(masked):
+        text = sql[m.start() : m.end()]
+        if text == ";":
+            out.append(current)
+            current = []
+        elif text in "(),":
+            current.append(Token("punct", text, text, ""))
+        elif text[0] in "'\"":
+            current.append(Token("string", text, _unescape(text), ""))
+        else:
+            parts = [_unquote(p) for p in _PART_RE.findall(text)]
+            word = text.upper() if len(parts) == 1 and not text.startswith("`") else ""
+            current.append(Token("name", text, parts, word))
+    out.append(current)
+    return [statement for statement in out if statement]

@@ -134,8 +134,8 @@ from `rowLevelOutcomes` fails with Spark's "cannot resolve" error.
 - Only `GlueContext` readers and writers and catalog `path`s are mapped.
   `spark.read...load("s3://...")` and SQL `LOCATION 's3://...'` are passed
   to Sail unchanged and fail in `local` mode (Sail has no credentials or the
-  bucket doesn't exist). `df.write...save("s3://...")` is blocked by the
-  [S3 write lock](#s3-write-lock).
+  bucket doesn't exist). `df.write...save("s3://...")` and SQL writes to an
+  S3 location are blocked by the [S3 write lock](#s3-write-lock).
 - Writes append. Glue's sinks append too, but a local re-run sees the
   previous run's output; delete the target directory between runs.
 - There is no S3 consistency, listing or permission emulation. A path that
@@ -155,12 +155,47 @@ with `PRYTT_ALLOW_S3_WRITES=1`; see
 |---|---|
 | `df.write.save(path)` and the shortcuts `parquet`, `json`, `csv`, `text`, `xml`, `orc` (also `.option("path", ...)`) | `path` is `s3://`, `s3a://` or `s3n://`, in any mode. These paths are never mapped, so in `local` mode the error suggests a local path or a Glue writer. |
 | `write_dynamic_frame.from_options`, `write_dynamic_frame.from_catalog` (and `write_data_frame`) | The target is still `s3://` after mapping: `from_options` in `s3.mode = "passthrough"`, `from_catalog` to a passthrough table (its own `mode`, else `s3.mode`; so a table with `mode = "passthrough"` is blocked even in `local` mode). Writes mapped under `s3.root` are never blocked. |
+| `spark.sql`: `INSERT INTO` / `INSERT OVERWRITE` (also after a `WITH` or `FROM` clause), `CREATE [OR REPLACE] TABLE ... AS SELECT`, `REPLACE TABLE ... AS`, `MERGE INTO`, `UPDATE`, `DELETE FROM`, `TRUNCATE TABLE` | The target is an `s3://`, `s3a://` or `s3n://` location (`LOCATION '...'`, `OPTIONS (path '...')`, `INSERT OVERWRITE DIRECTORY '...'`, or a path table such as ``delta.`s3://...` ``), a passthrough table (a mapped table whose own `mode`, else `s3.mode`, is `passthrough`), or a table this session created at an S3 location. |
+| `df.write.saveAsTable(name)`, `df.write.insertInto(name)` | `name` is a passthrough table (as for `spark.sql`), or a table this session created at an S3 location. For `saveAsTable`, also a `path` option (`.option("path", ...)` or `path=...`) that is an S3 URI. |
+| `df.writeTo(name)` then `append()`, `create()`, `replace()`, `createOrReplace()`, `overwrite(...)`, `overwritePartitions()` | As for `saveAsTable`, with `.option("path", ...)` or `.tableProperty("location", ...)` as the S3 location. |
 | `iceberg.warehouse` | Set to an `s3://` URI: a config error when the session starts. |
 
-Not covered yet: `saveAsTable`, `insertInto`, `DataFrameWriterV2`
-(`writeTo(...)`) and SQL writes (`INSERT`, `CREATE TABLE ... AS SELECT`,
-`MERGE`, ...) to S3 locations. Never covered: `boto3`, the AWS CLI, and side
-effects inside `mapInPandas` or UDFs. Reads are never blocked.
+URI schemes match in any case (`S3://` and `S3A://` are blocked too).
+
+In `spark.sql`, a `CREATE TABLE ... LOCATION 's3://...'` with no `AS SELECT`
+is allowed: it only registers the table. So is
+`ALTER TABLE ... SET LOCATION 's3://...'`. prytt remembers the table for the
+rest of the session, so a later `INSERT INTO` it (or any other write above) is
+blocked; `DROP TABLE`, or setting a local location again, forgets it. A
+`CREATE TABLE IF NOT EXISTS` of a table that already exists changes nothing.
+`DROP TABLE` and every read pass.
+
+**The SQL detection is heuristic, not a SQL parser.** prytt reads the
+statement text: it skips comments and string literals (an `s3://` value in a
+`SELECT` doesn't trigger the lock), finds the statement's keyword and the
+target name or location. Unusual SQL can slip past it, for example dynamic
+SQL built inside the query, `ALTER TABLE ... RENAME TO` of an S3-located
+table followed by a write under the new name, or `LOAD DATA`.
+
+Table names, in SQL and in `saveAsTable`, `insertInto` and `writeTo`, match
+case-insensitively (`RAW_DB.Orders` is `raw_db.orders`), with or without
+backquotes or a leading `spark_catalog.`. An unqualified name is in the
+session's current database (`spark.catalog.currentDatabase()`, which
+`USE DATABASE` sets). Writes to local tables, session-managed tables and
+`glue_catalog` Iceberg tables are not blocked.
+
+The table above is everything the lock covers. Known gaps, which it never
+covers:
+
+- `boto3`, the AWS CLI or any other client that talks to S3 directly.
+- Side effects inside `mapInPandas`, `applyInPandas`, `foreach` or UDFs (for
+  example a `boto3` upload from a worker).
+- SQL the heuristic detector misses (see above).
+- A table registered at an S3 location other than by `spark.sql` in this
+  session (for example through `spark.catalog.createTable(..., path="s3://...")`),
+  which `saveAsTable` / `insertInto` / `writeTo` then write to.
+
+Reads are never blocked.
 
 ## Catalog tables in SQL
 
