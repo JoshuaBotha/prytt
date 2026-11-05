@@ -16,7 +16,7 @@ python jobs/bronze_to_silver.py --JOB_NAME local --source_path s3://raw-bucket/o
 ```
 
 ```
-[prytt] INFO prytt 0.3.0, pysail 0.7.3, pyspark-client 4.1.4; sail at sc://127.0.0.1:52341
+[prytt] INFO prytt 0.4.0, pysail 0.7.3, pyspark-client 4.1.4; sail at sc://127.0.0.1:52341
 [prytt] INFO Job.init('local'), bookmarks off
 [prytt] MAP  s3://raw-bucket/orders/ -> /home/me/proj/.prytt/s3/raw-bucket/orders/
 [prytt] WARN Filter not applied locally (v1); data passed through unchanged
