@@ -2,11 +2,12 @@
 
 - ``on_pyspark(module)``: set ``pyspark.SparkContext`` to the shim.
 - ``on_session(module)``: wrap ``SparkSession.Builder.getOrCreate`` / ``create``
-  so they call ``server.ensure_running()`` first and
+  so they call ``s3lock.check_config()`` and ``server.ensure_running()`` first and
   ``server.session_built(spark)`` after. Also calls ``register_session_setup``,
   so the setup applies to spark-only scripts that never import ``awsglue``.
 - ``register_session_setup()``: register the server callbacks (idempotent):
-  ``iceberg.set_sail_catalog_env`` before start; ``paths.register_mapped_tables``
+  ``iceberg.set_sail_catalog_env`` before start; ``s3lock.setup_session``,
+  ``paths.register_mapped_tables``
   (T5) and ``iceberg.setup_session`` (T10) per new session.
   ``server.ensure_running`` also calls it, so every start path (SparkContext
   shim, builder, ``GlueContext``, pytest plugin) gets it even if
@@ -35,8 +36,9 @@ def _wrap(build):
 
     @functools.wraps(build)
     def wrapper(self, *args, **kwargs):
-        from prytt import server
+        from prytt import s3lock, server
 
+        s3lock.check_config()  # config errors before a session or server exists
         server.ensure_running()
         spark = build(self, *args, **kwargs)
         server.session_built(spark)
@@ -47,9 +49,10 @@ def _wrap(build):
 
 
 def register_session_setup():
-    from prytt import iceberg, paths, server
+    from prytt import iceberg, paths, s3lock, server
 
     server.on_before_start(iceberg.set_sail_catalog_env)  # glue_catalog (T10)
+    server.on_new_session(s3lock.setup_session)  # S3 write lock: writer wrappers, unlock WARN
     server.on_new_session(
         paths.register_mapped_tables
     )  # catalog tables as db.table + db_table views

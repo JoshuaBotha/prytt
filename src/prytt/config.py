@@ -10,8 +10,9 @@ Interface:
 ``Config`` is a frozen dataclass: ``disable``, ``log_level``, ``strict``,
 ``sail_port``, ``s3_mode``, ``s3_root`` (as configured, relative to cwd),
 ``catalog_on_missing``, ``catalog`` (``{"db.table": {path, format, ...}}``),
-``iceberg_warehouse`` (absolute ``Path``) and ``args`` (``{name: str}``,
-local job arguments for ``getResolvedOptions``).
+``iceberg_warehouse`` (absolute ``Path``, or an ``s3://`` URI kept as a
+``str``) and ``args`` (``{name: str}``, local job arguments for
+``getResolvedOptions``).
 
 Sources, highest first: ``PRYTT_*`` env vars, the nearest ``prytt.toml``
 (top-level keys), ``[tool.prytt]`` in the nearest ``pyproject.toml`` (both
@@ -41,7 +42,7 @@ class Config:
     s3_root: str = "./.prytt/s3"
     catalog_on_missing: str = "error"
     catalog: dict = field(default_factory=dict)
-    iceberg_warehouse: Path = Path(".prytt/warehouse")
+    iceberg_warehouse: Path | str = Path(".prytt/warehouse")
     args: dict = field(default_factory=dict)
 
 
@@ -180,9 +181,11 @@ def load(env=None, cwd=None) -> Config:
         values[name] = parse(raw)
     if "strict" not in values:
         values["strict"] = env.get("CI", "").strip().lower() in ("1", "true", "yes")
-    values["iceberg_warehouse"] = (
-        cwd / values.get("iceberg_warehouse", ".prytt/warehouse")
-    ).resolve()
+    warehouse = values.get("iceberg_warehouse", ".prytt/warehouse")
+    if warehouse.startswith(("s3://", "s3a://", "s3n://")):
+        values["iceberg_warehouse"] = warehouse  # kept as is; the S3 write lock checks it
+    else:
+        values["iceberg_warehouse"] = (cwd / warehouse).resolve()
     return Config(**values)
 
 

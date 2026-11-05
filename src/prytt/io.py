@@ -15,10 +15,11 @@ Interface:
   path only fails when the frame is used.
 - ``write_df(df, uri, format, format_options=None, partition_keys=None)``:
   append ``df`` at the mapped ``uri`` (creating the local dir), partitioned by
-  ``partition_keys`` if given.
+  ``partition_keys`` if given. Raises ``s3lock.PryttS3WriteBlocked`` if the
+  mapped target is still real S3 (passthrough) and the S3 write lock is on.
 """
 
-from prytt import formats, paths
+from prytt import formats, paths, s3lock
 
 
 def read_df(spark, uris, format, format_options=None):
@@ -35,6 +36,7 @@ def write_df(df, uri, format, format_options=None, partition_keys=None):
         raise ValueError("prytt: connection_options needs 'path' (an s3:// URI)")
     fmt = formats.spark_format(format)
     local = paths.map_path(uri, for_write=True)
+    s3lock.check_write(local, df.sparkSession)  # after mapping: local disk is never blocked
     writer = (
         df.write.format(fmt)
         .mode("append")

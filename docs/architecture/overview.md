@@ -72,6 +72,7 @@ flowchart TB
         paths["paths<br/>s3 mapping, catalog tables, SQL names"]
         sqltext["sqltext<br/>SQL tokens, quoting"]
         iceberg["iceberg<br/>glue_catalog env + re-registration"]
+        s3lock["s3lock<br/>S3 write lock"]
         io["io / formats<br/>read_df, write_df, format options"]
         stub["stub<br/>log, LogAny, strict mode"]
         plugin["pytest_plugin<br/>fixtures"]
@@ -90,12 +91,14 @@ flowchart TB
     awsglue --> io
     awsglue --> paths
     io --> paths
+    io --> s3lock
     server --> pysail
     server --> config
     paths --> sqltext
     iceberg --> sqltext
     shims -->|register_session_setup| paths
     shims -->|register_session_setup| iceberg
+    shims -->|register_session_setup| s3lock
     awsglue --> client
     paths --> client
     plugin --> server
@@ -111,6 +114,7 @@ flowchart TB
 | Paths and catalog | `prytt.paths` | Map `s3://` URIs to local paths; resolve mapped tables; register them as tables and temp views; wrap `spark.sql`/`spark.table` for name resolution and the unmapped-table hint. |
 | SQL text | `prytt.sqltext` | Quote identifiers and literals; mask comments and strings; find names in table positions. A heuristic tokenizer, not a parser. |
 | Iceberg | `prytt.iceberg` | Declare `glue_catalog` to Sail; per session set the warehouse dir and re-register databases and tables found on disk; add `LOCATION` to `CREATE DATABASE glue_catalog.<db>`. |
+| S3 write lock | `prytt.s3lock` | Refuse writes to real S3 (`PryttS3WriteBlocked`) unless `PRYTT_ALLOW_S3_WRITES` unlocks them: wrap `DataFrameWriter.save`, check Glue writers after path mapping, reject an `s3://` Iceberg warehouse; one `WARN` per session when unlocked. |
 | I/O and formats | `prytt.io`, `prytt.formats` | Read/write DataFrames at mapped locations; translate Glue format names and options to Spark. |
 | Logging and strict mode | `prytt.stub` | `[prytt] TAG message` logging; `LogAny` catch-all base class; `GlueLocalUnsupported`. |
 | Glue API | `awsglue.*`, `awsgluedq.*` | The Glue classes and functions scripts import, implemented on Spark DataFrames or as logged stand-ins. |

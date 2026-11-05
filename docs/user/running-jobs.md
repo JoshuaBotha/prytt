@@ -165,10 +165,16 @@ Paths are mapped in:
   spellings.
 - `path` values in [catalog table mappings](#catalog-tables).
 
-Paths are **not** mapped in plain Spark calls (`spark.read.parquet("s3://...")`,
-`df.write.save("s3://...")`) or in SQL (`LOCATION 's3://...'`). Those reach
-Sail unchanged and fail unless you use passthrough mode. See
+Paths are **not** mapped in plain Spark calls (`spark.read.parquet("s3://...")`)
+or in SQL (`LOCATION 's3://...'`). Those reach Sail unchanged and fail unless
+you use passthrough mode. See
 [Compatibility and limits](compatibility.md#s3-and-paths).
+
+Plain Spark writes to `s3://` (`df.write.parquet("s3://...")`) are blocked by
+the S3 write lock in every mode: prytt raises `PryttS3WriteBlocked` rather
+than let a local run write to real S3 with your shell's credentials. Write to
+a local path or use a Glue writer instead. See
+[S3 write lock](compatibility.md#s3-write-lock).
 
 ### Reading real S3 (passthrough, best-effort)
 
@@ -181,6 +187,10 @@ fails early with a `RuntimeError` if none is set.
 **This mode is unverified.** Anonymous public reads
 (`AWS_SKIP_SIGNATURE=true`) were tested; SSO profiles and other credential
 setups were not. prytt logs a one-line `WARN` when passthrough is on.
+Glue writers (`write_dynamic_frame.from_options` / `from_catalog`) raise
+`PryttS3WriteBlocked` in passthrough mode unless you set
+`PRYTT_ALLOW_S3_WRITES=1` for that run; see
+[Configuration](configuration.md#s3-write-lock-prytt_allow_s3_writes).
 Without credentials, Sail waits about 1 s on IMDS and then fails.
 
 ## Catalog tables
