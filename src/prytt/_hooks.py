@@ -3,8 +3,7 @@
 Imported at interpreter start by ``prytt._bootstrap``, so the same import rule
 applies: stdlib only, no ``importlib.abc`` / ``importlib.util`` / ``typing`` /
 ``inspect`` / ``logging`` / ``tomllib``. Finder and loaders are duck-typed
-classes; specs are built with ``importlib.machinery.ModuleSpec``. Working
-prototype with real hooks: ``spikes/s4_hook/prytt_spike/_hooks.py``.
+classes; specs are built with ``importlib.machinery.ModuleSpec``.
 
 Interface:
 

@@ -360,5 +360,5 @@ Other design choices, briefly:
 
 - [Developer guide](../developer/guide.md): code layout, extension seams,
   tests.
-- `spikes/NOTES.md`: the spike results (S1–S7, S-SQL1) the design rests on.
+- [Spike findings](../research/spikes.md): the spike results (S1–S7, S-SQL1) the design rests on.
 - `CLAUDE.md`: gotchas learned the hard way about Sail and pyspark-client.

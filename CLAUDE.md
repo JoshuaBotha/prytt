@@ -3,7 +3,7 @@
 Drop-in `awsglue` + PySpark shim so unmodified AWS Glue 6 job scripts run locally on Sail (Rust Spark Connect server), no JVM.
 
 - Docs: `README.md` (quick start) and `docs/` (index `docs/README.md`): user guides in `docs/user/` (behaviour, config, compatibility = what's real vs stubbed), `docs/architecture/overview.md`, `docs/developer/guide.md`, decisions in `docs/adr/` (`db.table` SQL resolution: ADR 0003).
-- Spike findings: `spikes/NOTES.md`. S5 SSO-profile check skipped by decision (S3 passthrough is best-effort).
+- Spike findings: `docs/research/spikes.md` (scripts removed; recover with `git show 6d9ad0e:spikes/<file>`). S5 SSO-profile check skipped by decision (S3 passthrough is best-effort).
 - Directory is still named `pritt/`; the project name is `prytt` everywhere else.
 - Before any change: follow `CONTRIBUTING.md` (branch names, PR titles, tests, done = `mise run ci` green), including its "For coding agents" section.
 
@@ -27,7 +27,7 @@ mise is the single entry point for tooling, tasks and env vars, so a task runs t
 
 ## Gotchas from the spikes (don't relearn these)
 
-- `_bootstrap` / `_hooks` run at every interpreter start: stdlib only, **no `importlib.abc`, `importlib.util`, `typing`, `inspect`, `logging`, `tomllib`**. Plain duck-typed finder/loaders + `importlib.machinery.ModuleSpec`. Working prototype: `spikes/s4_hook/prytt_spike/` (< 1 ms).
+- `_bootstrap` / `_hooks` run at every interpreter start: stdlib only, **no `importlib.abc`, `importlib.util`, `typing`, `inspect`, `logging`, `tomllib`**. Plain duck-typed finder/loaders + `importlib.machinery.ModuleSpec`. Real implementation: `src/prytt/_hooks.py` (< 1 ms at start-up).
 - pyspark-client has no `pyspark.context` and no `pyspark.SparkContext`. `SparkConf` and `SQLContext` work as-is.
 - Hook firing order: `pyspark.sql.session` → `pyspark` → `pyspark.context`.
 - Sail: `SparkConnectServer(ip="127.0.0.1", port=0).start(background=True)`; address from `.listening_address`. Set `SAIL_CATALOG__*` env **before** `start()`. Quiet Rust logs (`RUST_LOG`) by default.
