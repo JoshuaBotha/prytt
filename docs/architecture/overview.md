@@ -236,6 +236,12 @@ flowchart LR
     spark --> dyf["DynamicFrame(df)"]
 ```
 
+`map_path` maps in a given S3 mode. Catalog callers (`from_catalog` and
+session registration) pass the table's effective mode from
+`paths.table_mode` (its own `mode`, else `s3.mode`); `from_options` passes
+none, so the global `s3.mode` applies. `paths.is_passthrough(mode)` is the
+one place that decides whether a table is a passthrough table.
+
 Writes follow the same route through `io.write_df`: map the path (creating
 the directory), translate the format, `df.write.mode("append")`, and
 `partitionBy(partitionKeys)`. A `DynamicFrame` is a wrapper around a

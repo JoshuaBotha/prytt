@@ -19,7 +19,7 @@ Sources override **per key**, not per table: `PRYTT_S3_ROOT` replaces
 arguments merge per name in the same order.
 
 Config is read once per process, on first use, and cached. Bad values (an
-unknown key, a bad boolean, an unknown `s3.mode`) raise `ValueError` when it
+unknown key, a bad boolean, an unknown `s3.mode` or table `mode`) raise `ValueError` when it
 loads, which is at the first Spark or `awsglue` call that needs it.
 
 The same settings in both file forms:
@@ -73,7 +73,7 @@ ignore it).
 | `log_level` | `PRYTT_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`. `DEBUG` also leaves Sail's `RUST_LOG` alone. |
 | `strict` | `PRYTT_STRICT` | `true` if `CI` is `1`/`true`/`yes`, else `false` | Boolean. See [Strict mode](running-jobs.md#strict-mode). An explicit value from any source beats the `CI` default. |
 | `sail.port` | `PRYTT_SAIL_PORT` | `0` | Integer. Port for prytt's Sail server on `127.0.0.1`; `0` picks a free one. |
-| `s3.mode` | `PRYTT_S3_MODE` | `local` | `local` (map to `s3.root`) or `passthrough` (read real S3; best-effort). |
+| `s3.mode` | `PRYTT_S3_MODE` | `local` | `local` (map to `s3.root`) or `passthrough` (read real S3; best-effort). A catalog table's own [`mode`](#catalog-table-entries) overrides it for that table. |
 | `s3.root` | `PRYTT_S3_ROOT` | `./.prytt/s3` | Path, relative to the current directory unless absolute. |
 | `catalog.on_missing` | `PRYTT_CATALOG_ON_MISSING` | `error` | `error` or `empty`. Applies to `from_catalog` reads only. |
 | `catalog."db.table"` | | none | Table mapping; see below. |
@@ -115,11 +115,43 @@ pytest plugin's fixtures always run with the lock on, even if your shell sets
 path = "s3://bucket/prefix/"   # required: s3:// URI (mapped) or local path
 format = "parquet"             # required
 options = { ... }              # optional: format options
+mode = "passthrough"           # optional: "local" or "passthrough"; default s3.mode
 ```
 
 - The key must be `"database.table"` with both parts non-empty. Quote it in
   TOML because it contains a dot.
-- Allowed keys: `path`, `format`, `options`. Anything else is an error.
+- Allowed keys: `path`, `format`, `options`, `mode`. Anything else is an
+  error when the config loads.
+- `mode` sets this table's S3 mode, overriding `s3.mode`. The table's
+  **effective mode** is its `mode` if set, otherwise the global `s3.mode`
+  from whatever source (file or `PRYTT_S3_MODE`). An explicit `mode` wins
+  over `PRYTT_S3_MODE`, and there is no per-table env override. A bad value
+  (`"passthru"`) fails when the config loads, naming the allowed values.
+  - With effective mode `local` it is a
+    [local table](../../GLOSSARY.md#language): its `s3://` path maps under
+    `s3.root`.
+  - With effective mode `passthrough` it is a
+    [passthrough table](../../GLOSSARY.md#language): its `s3://` path goes to
+    Sail unchanged and is read from real S3, with no local "no data yet"
+    check at registration. Writes to it (`write_dynamic_frame.from_catalog`)
+    are blocked by the [S3 write lock](#s3-write-lock-prytt_allow_s3_writes).
+  - The effective mode applies to everything that names the table: the
+    registered table and temp view (`spark.sql`, `spark.table`) and
+    `from_catalog` reads and writes. `from_options` and plain Spark paths
+    always follow the global `s3.mode`, even for the same `s3://` path.
+  - The `MAP` line for each registered table ends with its effective mode
+    and where it came from: `mode=passthrough (table)` or
+    `mode=local (global)`.
+
+  For example, read one reference table from real S3 and keep everything
+  else local:
+
+  ```toml
+  [tool.prytt.catalog."ref_db.prices"]
+  path = "s3://gold-bucket/prices/"
+  format = "parquet"
+  mode = "passthrough"
+  ```
 - `options` must be a table. `partitionKeys` in `options` is used by
   `write_dynamic_frame.from_catalog`; every other option is a format option.
 - Lookup is exact first, then case-insensitive.
@@ -171,7 +203,7 @@ option) are ignored with a `WARN`.
 | `SPARK_REMOTE` | read, set | If set before Spark is first used, prytt connects there and starts no server. Otherwise prytt sets it to its own Sail server and clears it at exit. |
 | `RUST_LOG` | read, set | Sail's log filter. prytt sets `error` unless it is already set or `log_level` is `DEBUG`. |
 | `SAIL_CATALOG__LIST`, `SAIL_CATALOG__DEFAULT_CATALOG` | read, set | Sail's catalogs. prytt declares `sail` (default) and `glue_catalog` unless already set. Not touched for an external server. |
-| `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_PROFILE`, `AWS_CONFIG_FILE` | read | Region check for `s3.mode = "passthrough"`. Credentials are read by Sail, not prytt. |
+| `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_PROFILE`, `AWS_CONFIG_FILE` | read | Region check when `s3.mode` or a table's `mode` is `passthrough`. Credentials are read by Sail, not prytt. |
 
 Any other `SAIL_*` variable you set reaches Sail unchanged, because the
 server runs in the same process.

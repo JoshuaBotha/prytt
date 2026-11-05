@@ -90,7 +90,7 @@ def passthrough(monkeypatch, tmp_path, **env):
     for name in ("AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("AWS_CONFIG_FILE", str(tmp_path / "aws-config"))
-    set_env(monkeypatch, PRYTT_S3_MODE="passthrough", **env)
+    set_env(monkeypatch, **{"PRYTT_S3_MODE": "passthrough", **env})
 
 
 def test_passthrough_leaves_uris_alone_and_warns_once(monkeypatch, tmp_path, capsys):
@@ -117,6 +117,38 @@ def test_passthrough_accepts_region_from_the_profile(monkeypatch, tmp_path):
     passthrough(monkeypatch, tmp_path, AWS_PROFILE="dev")
 
     assert paths.map_path("s3://b/k") == "s3://b/k"
+
+
+PASSTHROUGH_TABLE = """
+[catalog."ref_db.prices"]
+path = "s3://ref/prices/"
+format = "json"
+mode = "passthrough"
+"""
+
+
+def test_passthrough_table_without_region_names_the_table(monkeypatch, tmp_path):
+    passthrough(monkeypatch, tmp_path, PRYTT_S3_MODE="local")
+    (tmp_path / "prytt.toml").write_text(PASSTHROUGH_TABLE)
+    config.reset()
+
+    with pytest.raises(RuntimeError, match="AWS_REGION") as exc:
+        paths.map_path("s3://ref/prices/", mode="passthrough")
+
+    assert "passthrough table ref_db.prices" in str(exc.value)
+    assert "s3.mode" not in str(exc.value)
+
+
+def test_passthrough_table_warning_names_the_table(monkeypatch, tmp_path, capsys):
+    passthrough(monkeypatch, tmp_path, PRYTT_S3_MODE="local", AWS_REGION="eu-west-1")
+    (tmp_path / "prytt.toml").write_text(PASSTHROUGH_TABLE)
+    config.reset()
+
+    assert paths.map_path("s3://ref/prices/", mode="passthrough") == "s3://ref/prices/"
+
+    err = capsys.readouterr().err
+    assert "passthrough table ref_db.prices (region eu-west-1)" in err
+    assert "s3.mode" not in err
 
 
 def test_unknown_s3_mode_is_rejected(monkeypatch):

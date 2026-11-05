@@ -24,7 +24,9 @@ Interface:
   ``GlueLocalUnsupported``.
 - ``from_catalog`` calls ``prytt.paths.resolve_table(database, table_name)``
   (the T5 seam) and then reads/writes like ``from_options`` with the table's
-  path, format and options; ``additional_options`` are merged over the
+  path, format and options, mapping the path in the table's effective mode
+  (``paths.table_mode``: its own ``mode``, else ``s3.mode``; ``from_options``
+  always uses ``s3.mode``); ``additional_options`` are merged over the
   table's options. An unmapped table raises ``paths.CatalogTableNotFound``,
   except on read with ``catalog.on_missing = "empty"``: ``WARN`` and an
   empty frame (no columns).
@@ -116,7 +118,8 @@ class _Reader(LogAny):
             df = self._ctx.spark_session.createDataFrame([], StructType([]))
             return self._result(df, transformation_ctx or missing.table_name)
         options = {**(table.options or {}), **(additional_options or {})}
-        df = read_df(self._ctx.spark_session, [table.path], table.format, options)
+        mode, _ = paths.table_mode(table)
+        df = read_df(self._ctx.spark_session, [table.path], table.format, options, mode=mode)
         return self._result(df, transformation_ctx)
 
 
@@ -155,7 +158,8 @@ class _Writer(LogAny):
         table = paths.resolve_table(name, table_name)
         options = {**(table.options or {}), **(additional_options or {})}
         partition_keys = options.pop("partitionKeys", None)
-        write_df(_as_df(frame), table.path, table.format, options, partition_keys)
+        mode, _ = paths.table_mode(table)
+        write_df(_as_df(frame), table.path, table.format, options, partition_keys, mode=mode)
         return frame
 
 

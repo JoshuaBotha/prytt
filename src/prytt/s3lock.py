@@ -30,9 +30,12 @@ Interface:
   locked raises ``ValueError``: an ``iceberg.warehouse`` that is an ``s3://``
   URI. Called by the session builder hook before the session is built.
 - ``is_passthrough_table(database, table_name) -> bool``: whether prytt reads
-  this table from real S3, so a write to it would reach S3: today a mapped
-  table while the global ``s3.mode`` is ``"passthrough"``. The one place that
-  decides which tables are passthrough.
+  this table from real S3, so a write to it would reach S3: a mapped table
+  whose effective mode (``paths.table_mode``: its own ``mode``, else the
+  global ``s3.mode``) is ``"passthrough"``. So a table with
+  ``mode = "passthrough"`` is blocked under global ``local`` mode, and one
+  with ``mode = "local"`` is not blocked under global ``passthrough``. The one
+  place that decides which tables are passthrough.
 - ``check_table_write(name, spark=None)``: raise ``PryttS3WriteBlocked`` if
   ``name`` (a string such as ``db.t`` or a list of parts) is a passthrough
   table or one of ``spark``'s S3-located tables and the lock is on
@@ -164,7 +167,8 @@ def _passthrough_table(database: str, table_name: str):
         table = paths.resolve_table(database, table_name)
     except paths.CatalogTableNotFound:
         return None
-    return table if config.get().s3_mode == "passthrough" else None
+    mode, _source = paths.table_mode(table)
+    return table if paths.is_passthrough(mode) else None
 
 
 def _table(name, spark) -> tuple | None:

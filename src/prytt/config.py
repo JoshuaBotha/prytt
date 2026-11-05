@@ -22,6 +22,9 @@ per key, not per table. ``strict`` defaults to true when ``CI`` is truthy,
 but an explicit ``strict`` from any source wins. ``s3.mode`` must be
 ``local``/``passthrough`` and ``catalog.on_missing`` ``error``/``empty``;
 bad values (like bad booleans) raise ``ValueError`` when the config loads.
+A catalog table entry takes ``path``, ``format``, ``options`` and an optional
+``mode`` (``local``/``passthrough``, overriding ``s3.mode`` for that table;
+no env override); other keys or a bad ``mode`` also raise when it loads.
 Job arguments come from an ``[args]`` table (any key, values made strings,
 booleans as ``true``/``false``) and ``PRYTT_ARG_<name>`` env vars, merged
 per name with the same precedence.
@@ -67,6 +70,7 @@ def _upper(value) -> str:
 
 S3_MODES = ("local", "passthrough")
 ON_MISSING = ("error", "empty")
+CATALOG_ENTRY_KEYS = ("path", "format", "options", "mode")
 
 
 def _one_of(key: str, allowed: tuple):
@@ -138,7 +142,7 @@ def _flatten(table: dict, origin: Path, catalog: dict, args: dict) -> dict:
         elif isinstance(value, dict):
             for sub, subvalue in value.items():
                 if name == "catalog" and isinstance(subvalue, dict):
-                    catalog[sub] = subvalue
+                    catalog[sub] = _catalog_entry(sub, subvalue, origin)
                 else:
                     flat[f"{name}.{sub}"] = subvalue
         else:
@@ -147,6 +151,19 @@ def _flatten(table: dict, origin: Path, catalog: dict, args: dict) -> dict:
     if unknown:
         raise ValueError(f"prytt config: unknown key(s) {', '.join(unknown)} in {origin}")
     return flat
+
+
+def _catalog_entry(key: str, entry: dict, origin: Path) -> dict:
+    """Check a mapped table's keys and ``mode``. ``path`` and ``format`` are
+    checked when the table is used (``prytt.paths``)."""
+    unknown = sorted(set(entry) - set(CATALOG_ENTRY_KEYS))
+    if unknown:
+        raise ValueError(
+            f"prytt config: catalog.{key!r} has unknown key(s) {', '.join(unknown)} in {origin}"
+        )
+    if "mode" in entry:
+        _one_of(f"catalog.{key!r} mode", S3_MODES)(entry["mode"])
+    return entry
 
 
 def _file_sources(cwd: Path, catalog: dict, args: dict) -> list:

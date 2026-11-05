@@ -132,5 +132,5 @@ def test_mapped_tables_are_temp_views_on_each_new_session(glue_context, project,
     finally:
         spark.stop()  # don't leave it for the GC to collect mid-query in a later test
     err = capsys.readouterr().err
-    assert "(table raw_db.orders, view raw_db_orders)" in err  # registered (MAP)
+    assert "(table raw_db.orders, view raw_db_orders, mode=local (global))" in err  # MAP
     assert "WARN catalog table curated_db.orders skipped" in err  # no data yet: not a crash

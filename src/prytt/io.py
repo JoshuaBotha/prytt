@@ -6,36 +6,38 @@ never imports ``awsglue``.
 
 Interface:
 
-- ``read_df(spark, uris, format, format_options=None) -> DataFrame``: map
-  ``uris`` (one string or a list) through ``paths.map_paths``, the format and
+- ``read_df(spark, uris, format, format_options=None, mode=None) -> DataFrame``:
+  map ``uris`` (one string or a list) through ``paths.map_paths`` in ``mode``
+  (a catalog table's effective mode; ``None``: the global ``s3.mode``), the format and
   options through ``prytt.formats``, and return
   ``spark.read.format(fmt).options(...).load(local)``. Config errors (ORC,
   bad ``s3.mode``, passthrough without a region, no paths) raise before
   ``spark`` is touched. The read itself is lazy (Spark Connect), so a missing
   path only fails when the frame is used.
-- ``write_df(df, uri, format, format_options=None, partition_keys=None)``:
-  append ``df`` at the mapped ``uri`` (creating the local dir), partitioned by
-  ``partition_keys`` if given. Raises ``s3lock.PryttS3WriteBlocked`` if the
-  mapped target is still real S3 (passthrough) and the S3 write lock is on.
+- ``write_df(df, uri, format, format_options=None, partition_keys=None, mode=None)``:
+  append ``df`` at ``uri`` mapped in ``mode`` (as ``read_df``; creating the
+  local dir), partitioned by ``partition_keys`` if given. Raises
+  ``s3lock.PryttS3WriteBlocked`` if the mapped target is still real S3
+  (passthrough) and the S3 write lock is on.
 """
 
 from prytt import formats, paths, s3lock
 
 
-def read_df(spark, uris, format, format_options=None):
+def read_df(spark, uris, format, format_options=None, mode=None):
     fmt = formats.spark_format(format)
-    local = paths.map_paths(uris)
+    local = paths.map_paths(uris, mode=mode)
     if not local:
         raise ValueError("prytt: connection_options needs 'paths' (a list of s3:// URIs)")
     options = formats.spark_options(fmt, format_options)
     return spark.read.format(fmt).options(**options).load(local)
 
 
-def write_df(df, uri, format, format_options=None, partition_keys=None):
+def write_df(df, uri, format, format_options=None, partition_keys=None, mode=None):
     if not uri:
         raise ValueError("prytt: connection_options needs 'path' (an s3:// URI)")
     fmt = formats.spark_format(format)
-    local = paths.map_path(uri, for_write=True)
+    local = paths.map_path(uri, for_write=True, mode=mode)
     s3lock.check_write(local, df.sparkSession)  # after mapping: local disk is never blocked
     writer = (
         df.write.format(fmt)

@@ -72,7 +72,8 @@ def test_spark_only_script_sees_mapped_tables_as_temp_views(tmp_path):
     assert proc.stdout.strip().splitlines()[-1] == "[1, 2]"
     orders = (tmp_path / "s3" / "raw" / "orders").resolve().as_posix()
     assert (
-        f"MAP  raw_db.orders -> {orders}/ (table raw_db.orders, view raw_db_orders)" in proc.stderr
+        f"MAP  raw_db.orders -> {orders}/ (table raw_db.orders, view raw_db_orders, "
+        "mode=local (global))" in proc.stderr
     )
 
 
