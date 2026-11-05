@@ -150,6 +150,52 @@ def test_map_line_shows_each_tables_mode_and_its_source(
     assert "(table raw_db.items, view raw_db_items, mode=local (table))" in err
 
 
+@pytest.fixture
+def fake_s3_registration(monkeypatch):
+    """Let ``s3://`` tables register without S3: their read becomes a one-row
+    local frame and their ``CREATE TABLE`` is skipped. Local tables are untouched."""
+    from prytt import io, paths
+
+    real_read, real_create = io.read_df, paths._create_table
+
+    def read_df(spark, uris, format, format_options=None, mode=None):
+        if str(uris).startswith("s3://"):
+            return spark.createDataFrame([(1,)], "id int")
+        return real_read(spark, uris, format, format_options, mode=mode)
+
+    def create_table(spark, database, table_name, fmt, options, location):
+        if not location.startswith("s3://"):
+            real_create(spark, database, table_name, fmt, options, location)
+
+    monkeypatch.setattr(io, "read_df", read_df)
+    monkeypatch.setattr(paths, "_create_table", create_table)
+
+
+@pytest.mark.parametrize(
+    ("toml", "source"),
+    [
+        (MIXED, "table"),
+        (
+            '[s3]\nmode = "passthrough"\n[catalog."ref_db.prices"]\n'
+            'path = "s3://ref/prices/"\nformat = "json"\n',
+            "global",
+        ),
+    ],
+    ids=["table", "global"],
+)
+def test_map_line_for_a_passthrough_table_keeps_s3_and_shows_its_source(
+    project, monkeypatch, new_session, fake_s3_registration, capsys, toml, source
+):
+    configure(project, monkeypatch, toml)
+
+    new_session()
+
+    assert (
+        "MAP  ref_db.prices -> s3://ref/prices/ (table ref_db.prices, view ref_db_prices, "
+        f"mode=passthrough ({source}))" in capsys.readouterr().err
+    )
+
+
 def test_explicit_table_mode_wins_over_prytt_s3_mode(
     project, monkeypatch, s3_root, new_session, capsys
 ):
