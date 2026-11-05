@@ -124,7 +124,8 @@ When passthrough is in use (`s3.mode` or any mapped table's effective
   profile;
 - for an SSO profile, raises `RuntimeError` with
   `run: aws sso login --profile <profile>` if its cached token is missing or
-  expired (a `WARN` if prytt can't read the cache).
+  expired (a `WARN` instead if prytt can't read the cache, or if the token
+  is expired but the AWS SDK can refresh it).
 
 One AWS profile per process: a later session start that resolves a
 different `s3.profile` (or none, after one) raises `RuntimeError`.
