@@ -141,8 +141,8 @@ from `rowLevelOutcomes` fails with Spark's "cannot resolve" error.
 - There is no S3 consistency, listing or permission emulation. A path that
   doesn't exist fails at the first action on the frame (Spark Connect is
   lazy), not at the `from_options` call.
-- `passthrough` mode (global or per table) is best-effort: tested only with
-  anonymous public reads. No region is required (Sail discovers each
+- `passthrough` mode (global or per table): reads verified against real AWS with an SSO profile: `mise run test:s3-live` read a partitioned Parquet passthrough table through `spark.sql`, with partition columns discovered. Other
+  credential types and Delta/Iceberg on S3 are untested against real AWS. No region is required (Sail discovers each
   bucket's), and the AWS profile comes from `s3.profile`, one per process.
   See [S3 and AWS](s3-and-aws.md).
 

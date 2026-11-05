@@ -179,8 +179,8 @@ local path or use a Glue writer instead.
 ### Reading real S3
 
 To read real S3, set `s3.mode = "passthrough"` for everything, or
-`mode = "passthrough"` on just the catalog tables you need. Passthrough is
-best-effort: only anonymous public reads have been verified. Pick the AWS
+`mode = "passthrough"` on just the catalog tables you need. Passthrough
+reads have been verified against real AWS with an SSO profile. Pick the AWS
 identity with `s3.profile` (SSO profiles included); no region is needed.
 
 [S3 and AWS](s3-and-aws.md) covers all of it: which mode suits your case,

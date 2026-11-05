@@ -73,7 +73,7 @@ ignore it).
 | `log_level` | `PRYTT_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`. `DEBUG` also leaves Sail's `RUST_LOG` alone. |
 | `strict` | `PRYTT_STRICT` | `true` if `CI` is `1`/`true`/`yes`, else `false` | Boolean. See [Strict mode](running-jobs.md#strict-mode). An explicit value from any source beats the `CI` default. |
 | `sail.port` | `PRYTT_SAIL_PORT` | `0` | Integer. Port for prytt's Sail server on `127.0.0.1`; `0` picks a free one. |
-| `s3.mode` | `PRYTT_S3_MODE` | `local` | `local` (map to `s3.root`) or `passthrough` (read real S3; best-effort). A catalog table's own [`mode`](#catalog-table-entries) overrides it for that table. See [S3 and AWS](s3-and-aws.md). |
+| `s3.mode` | `PRYTT_S3_MODE` | `local` | `local` (map to `s3.root`) or `passthrough` (read real S3). A catalog table's own [`mode`](#catalog-table-entries) overrides it for that table. See [S3 and AWS](s3-and-aws.md). |
 | `s3.root` | `PRYTT_S3_ROOT` | `./.prytt/s3` | Path, relative to the current directory unless absolute. |
 | `s3.profile` | `PRYTT_S3_PROFILE` | none | AWS profile name Sail uses for S3, exported as `AWS_PROFILE`. An empty `PRYTT_S3_PROFILE` unsets a file value. See [AWS profile](#aws-profile-s3profile). |
 | `catalog.on_missing` | `PRYTT_CATALOG_ON_MISSING` | `error` | `error` or `empty`. Applies to `from_catalog` reads only. |

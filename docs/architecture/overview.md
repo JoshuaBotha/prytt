@@ -22,7 +22,7 @@ flowchart LR
     script -->|import awsglue, pyspark| prytt[prytt shim]
     prytt -->|Spark Connect gRPC, 127.0.0.1| sail[Sail server, in-process]
     sail --> fs[(Local files: .prytt/s3, .prytt/warehouse)]
-    sail -. passthrough mode, best-effort .-> s3[(Amazon S3)]
+    sail -. passthrough mode .-> s3[(Amazon S3)]
     script -. on AWS, unchanged .-> glue[AWS Glue 6]
 ```
 
@@ -317,7 +317,7 @@ set. It is safe to call twice. For an external server, prytt stops nothing.
 | **pytest, subprocess** | `subprocess.run([sys.executable, job, ...])` | Each job starts its own server; exercises the real `.pth` path. prytt's own acceptance tests. |
 | **CI** | Same commands with `CI=true` | Strict mode on by default. Warm Sail first on a fresh runner (~30 s once). |
 | **External Spark Connect server** | `SPARK_REMOTE=sc://host:port` | prytt starts nothing and sets no Sail env; still registers mapped tables, which the server must be able to read. |
-| **S3 passthrough** | `s3.mode = "passthrough"` | Sail reads real S3 with the AWS credential chain. Best-effort, unverified beyond anonymous reads. |
+| **S3 passthrough** | `s3.mode = "passthrough"` | Sail reads real S3 with the AWS credential chain. Reads verified with an SSO profile (`mise run test:s3-live`); other credential types untested. |
 | **AWS Glue** | Deploy the same script | prytt is not installed; Glue's own `awsglue` and Spark run it. |
 
 ## Quality attributes
@@ -375,7 +375,7 @@ Other design choices, briefly:
 | SQL name rewrite is a heuristic, not a parser | Unusual SQL not rewritten or (rarely) mis-rewritten | Only names in table positions; comments and strings masked; tests in `tests/acceptance/test_catalog_scripts.py`. |
 | Pass-through transforms change results silently | Wrong local output | `WARN` per call; documented; `SMOKE` tier in the self-test job. |
 | `PRYTT_DISABLE` doesn't stop `GlueContext()` from starting Sail | Surprise when disabling | Documented in [Install](../user/install.md#turn-it-off-or-remove-it). |
-| Passthrough untested with real credentials | Auth failures | Marked best-effort; `WARN` on use. |
+| Passthrough only verified with SSO-profile reads | Auth failures with other credential types | `mise run test:s3-live` (manual); static-key conflict and SSO token checked at session start. |
 
 ## Further reading
 
