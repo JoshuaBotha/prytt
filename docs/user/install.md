@@ -32,7 +32,7 @@ On Windows, prytt logs and passes Spark local paths with forward slashes
    CI run gets the same version:
 
    ```bash
-   uv add --dev "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.3.0"
+   uv add --dev "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.4.0"
    ```
 
    This pulls in `pysail` (>=0.7.3) and `pyspark-client` (4.1.x). Releases
@@ -40,10 +40,10 @@ On Windows, prytt logs and passes Spark local paths with forward slashes
    an sdist attached, so you can also install from a downloaded wheel:
 
    ```bash
-   uv add --dev ./prytt-0.3.0-py3-none-any.whl
+   uv add --dev ./prytt-0.4.0-py3-none-any.whl
    ```
 
-   With pip: `pip install "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.3.0"`.
+   With pip: `pip install "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.4.0"`.
 
 3. Warm Sail once. **The first run after install can take about 30 s**
    before Sail answers, because it loads its native library (most noticeable
@@ -56,7 +56,7 @@ On Windows, prytt logs and passes Spark local paths with forward slashes
    You should see one line like:
 
    ```
-   [prytt] INFO prytt 0.3.0, pysail 0.7.3, pyspark-client 4.1.4; sail at sc://127.0.0.1:52341
+   [prytt] INFO prytt 0.4.0, pysail 0.7.3, pyspark-client 4.1.4; sail at sc://127.0.0.1:52341
    ```
 
 Nothing else needs configuring for the default setup. Next:
@@ -92,7 +92,7 @@ both packages provide the `pyspark` import name.
 Change the tag and sync:
 
 ```bash
-uv add --dev "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.3.0"
+uv add --dev "prytt @ git+https://github.com/JoshuaBotha/prytt.git@v0.4.0"
 ```
 
 While prytt is 0.x, a minor version bump (0.1 → 0.2) may contain breaking
