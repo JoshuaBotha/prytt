@@ -89,8 +89,8 @@ Unknown keys are an error, so a typo fails loudly rather than being ignored.
 
 By default prytt refuses every write to real S3 it can detect, in every
 `s3.mode`, by raising `prytt.PryttS3WriteBlocked` (a `PermissionError`) that
-names the URI. It raises even with strict mode off. Writes prytt maps to local
-disk under `s3.root` and all reads are never blocked. See
+names the URI or table. It raises even with strict mode off. Writes prytt
+maps to local disk under `s3.root` and all reads are never blocked. See
 [Compatibility](compatibility.md#s3-write-lock) for what is covered so far.
 
 The only unlock is the environment variable `PRYTT_ALLOW_S3_WRITES` set to
