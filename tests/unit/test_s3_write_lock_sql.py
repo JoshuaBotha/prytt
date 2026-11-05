@@ -59,6 +59,10 @@ S3_LOCATION_WRITES = [
     "UPDATE delta.`s3n://b/k` SET v = 'x'",
     "DELETE FROM delta.`s3://b/k` WHERE id = 1",
     "TRUNCATE TABLE delta.`s3://b/k`",
+    # URI schemes are case-insensitive
+    "INSERT OVERWRITE delta.`S3://b/k` SELECT 1",
+    "INSERT OVERWRITE DIRECTORY 'S3A://b/k' USING parquet SELECT * FROM lock_src",
+    "CREATE TABLE ctas_s3 USING parquet LOCATION 'S3n://b/k' AS SELECT * FROM lock_src",
 ]
 
 
@@ -147,6 +151,82 @@ def test_dropped_s3_table_name_can_be_reused_locally(spark, src, tmp_path, no_re
         spark.sql(f"INSERT INTO s3_reused SELECT * FROM {src}")
     finally:
         spark.sql("DROP TABLE s3_reused")
+
+
+@pytest.fixture
+def use_database(spark):
+    """``use_database(name)`` creates ``name`` if needed and makes it the
+    current database until the test ends."""
+
+    def use(name):
+        spark.sql(f"CREATE DATABASE IF NOT EXISTS {name}")
+        spark.sql(f"USE DATABASE {name}")
+
+    yield use
+    spark.sql("USE DATABASE default")
+
+
+def test_unqualified_names_resolve_against_the_current_database(
+    spark, src, passthrough_table, use_database
+):
+    use_database("pt_db")
+
+    with pytest.raises(PryttS3WriteBlocked, match=r"pt_db\.orders.*passthrough"):
+        spark.sql("INSERT INTO orders SELECT * FROM lock_src")
+    with pytest.raises(PryttS3WriteBlocked):
+        spark.sql("TRUNCATE TABLE Orders")
+
+
+def test_tables_created_at_s3_are_recorded_in_the_current_database(
+    spark, local_table, use_database, no_real_aws
+):
+    use_database("lock_db")
+    try:
+        spark.sql("CREATE TABLE lock_local (id INT, v STRING) USING parquet LOCATION 's3://b/db/'")
+        with pytest.raises(PryttS3WriteBlocked, match=r"lock_db\.lock_local"):
+            spark.sql("INSERT INTO lock_local SELECT * FROM lock_src")
+    finally:
+        spark.sql("DROP TABLE IF EXISTS lock_db.lock_local")
+        spark.sql("USE DATABASE default")
+
+    spark.sql("INSERT INTO lock_local SELECT * FROM lock_src")  # default.lock_local: local
+
+
+def test_create_table_if_not_exists_at_s3_leaves_an_existing_table_writable(
+    spark, local_table, no_real_aws
+):
+    spark.sql(
+        "CREATE TABLE IF NOT EXISTS lock_local (id INT, v STRING) "
+        "USING parquet LOCATION 's3://b/ine/'"
+    )
+
+    spark.sql("INSERT INTO lock_local SELECT * FROM lock_src")
+    assert spark.table("lock_local").count() == 2
+
+
+def test_create_table_if_not_exists_at_s3_records_a_new_table(spark, src, no_real_aws):
+    spark.sql("DROP TABLE IF EXISTS s3_ine_new")
+    spark.sql(
+        "CREATE TABLE IF NOT EXISTS s3_ine_new (id INT, v STRING) "
+        "USING parquet LOCATION 's3://b/ine_new/'"
+    )
+    try:
+        with pytest.raises(PryttS3WriteBlocked, match=r"s3_ine_new.*s3://b/ine_new/"):
+            spark.sql("INSERT INTO s3_ine_new SELECT * FROM lock_src")
+    finally:
+        spark.sql("DROP TABLE s3_ine_new")
+
+
+def test_alter_table_set_location_to_s3_is_allowed_and_later_writes_are_blocked(
+    spark, local_table, tmp_path, no_real_aws
+):
+    spark.sql("ALTER TABLE lock_local SET LOCATION 's3://b/moved/'")
+
+    with pytest.raises(PryttS3WriteBlocked, match=r"lock_local.*s3://b/moved/"):
+        spark.sql("INSERT INTO lock_local SELECT * FROM lock_src")
+
+    spark.sql(f"ALTER TABLE lock_local SET LOCATION '{(tmp_path / 'back').as_posix()}'")
+    spark.sql("INSERT INTO lock_local SELECT * FROM lock_src")  # local again: not blocked
 
 
 @pytest.mark.parametrize(

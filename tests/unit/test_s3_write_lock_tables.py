@@ -115,6 +115,48 @@ def test_table_names_match_case_insensitively(df, passthrough_table, name):
         df.writeTo(name).append()
 
 
+@pytest.fixture
+def use_database(spark):
+    """``use_database(name)`` creates ``name`` if needed and makes it the
+    current database until the test ends."""
+
+    def use(name):
+        spark.sql(f"CREATE DATABASE IF NOT EXISTS {name}")
+        spark.sql(f"USE DATABASE {name}")
+
+    yield use
+    spark.sql("USE DATABASE default")
+
+
+@pytest.mark.parametrize("write", S3_LOCATED_WRITES.values(), ids=S3_LOCATED_WRITES.keys())
+def test_unqualified_names_resolve_against_the_current_database(
+    df, passthrough_table, use_database, write
+):
+    use_database("pt_db")
+
+    with pytest.raises(PryttS3WriteBlocked, match=r"pt_db\.orders.*passthrough"):
+        write(df, "orders")
+
+
+def test_writer_wrappers_are_installed_independently(monkeypatch, spark):
+    from pyspark.sql.connect.readwriter import DataFrameWriter, DataFrameWriterV2
+
+    from prytt import s3lock
+
+    methods = [(DataFrameWriter, name) for name in ("save", "saveAsTable", "insertInto")]
+    methods += [(DataFrameWriterV2, name) for name in s3lock._V2_METHODS]
+    for cls, name in methods:
+        with monkeypatch.context() as patch:
+            original = getattr(cls, name).__wrapped__
+            patch.setattr(cls, name, original)  # as if only this one were unwrapped
+            others = {other: getattr(c, other) for c, other in methods if other != name}
+
+            s3lock._wrap_writers()
+
+            assert getattr(cls, name).__wrapped__ is original, name
+            assert {other: getattr(c, other) for c, other in methods if other != name} == others
+
+
 def test_mixed_case_name_of_a_table_created_at_s3_is_blocked(df, s3_located_table):
     with pytest.raises(PryttS3WriteBlocked):
         df.write.mode("append").saveAsTable("default.TBL_S3_Made")

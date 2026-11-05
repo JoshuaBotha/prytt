@@ -216,8 +216,8 @@ registers is redone for each new `SparkSession` (tracked by
 The three `spark.sql` wrappers stack: Iceberg's outer wrapper rewrites
 `CREATE DATABASE`, then the paths wrapper rewrites table names, then the
 innermost S3 write lock wrapper checks the rewritten SQL for writes to S3
-(and records tables created at an S3 `LOCATION` in its per-session
-registry). Each uses its own marker attribute (`__prytt_wrapped__`,
+(and records tables created at, or moved by `ALTER TABLE ... SET LOCATION`
+to, an S3 location in its per-session registry). Each uses its own marker attribute (`__prytt_wrapped__`,
 `__prytt_names_wrapped__`, `__prytt_s3lock_sql_wrapped__`), because
 `functools.wraps` copies attributes from the inner function to the outer
 one.

@@ -160,23 +160,29 @@ with `PRYTT_ALLOW_S3_WRITES=1`; see
 | `df.writeTo(name)` then `append()`, `create()`, `replace()`, `createOrReplace()`, `overwrite(...)`, `overwritePartitions()` | As for `saveAsTable`, with `.option("path", ...)` or `.tableProperty("location", ...)` as the S3 location. |
 | `iceberg.warehouse` | Set to an `s3://` URI: a config error when the session starts. |
 
+URI schemes match in any case (`S3://` and `S3A://` are blocked too).
+
 In `spark.sql`, a `CREATE TABLE ... LOCATION 's3://...'` with no `AS SELECT`
-is allowed: it only registers the table. prytt remembers the table for the
+is allowed: it only registers the table. So is
+`ALTER TABLE ... SET LOCATION 's3://...'`. prytt remembers the table for the
 rest of the session, so a later `INSERT INTO` it (or any other write above) is
-blocked; `DROP TABLE` forgets it. `DROP TABLE` and every read pass.
+blocked; `DROP TABLE`, or setting a local location again, forgets it. A
+`CREATE TABLE IF NOT EXISTS` of a table that already exists changes nothing.
+`DROP TABLE` and every read pass.
 
 **The SQL detection is heuristic, not a SQL parser.** prytt reads the
 statement text: it skips comments and string literals (an `s3://` value in a
 `SELECT` doesn't trigger the lock), finds the statement's keyword and the
 target name or location. Unusual SQL can slip past it, for example dynamic
-SQL built inside the query, `ALTER TABLE ... SET LOCATION` followed by a
-write, or `LOAD DATA`.
+SQL built inside the query, `ALTER TABLE ... RENAME TO` of an S3-located
+table followed by a write under the new name, or `LOAD DATA`.
 
 Table names, in SQL and in `saveAsTable`, `insertInto` and `writeTo`, match
 case-insensitively (`RAW_DB.Orders` is `raw_db.orders`), with or without
-backquotes or a leading `spark_catalog.`. An unqualified name means database
-`default`, whatever `USE` selected. Writes to local tables, session-managed
-tables and `glue_catalog` Iceberg tables are not blocked.
+backquotes or a leading `spark_catalog.`. An unqualified name is in the
+session's current database (`spark.catalog.currentDatabase()`, which
+`USE DATABASE` sets). Writes to local tables, session-managed tables and
+`glue_catalog` Iceberg tables are not blocked.
 
 The table above is everything the lock covers. Known gaps, which it never
 covers:

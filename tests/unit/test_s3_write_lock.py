@@ -44,7 +44,7 @@ def test_plain_spark_write_to_s3_is_blocked_in_every_mode(monkeypatch, df, mode)
     assert "PRYTT_ALLOW_S3_WRITES=1" in str(info.value)
 
 
-@pytest.mark.parametrize("uri", ["s3a://b/k", "s3n://b/k"])
+@pytest.mark.parametrize("uri", ["s3a://b/k", "s3n://b/k", "S3://b/k", "S3A://b/k", "s3N://b/k"])
 def test_s3a_and_s3n_paths_are_blocked_too(df, uri):
     with pytest.raises(PryttS3WriteBlocked, match=uri):
         df.write.mode("overwrite").save(uri, format="json")
