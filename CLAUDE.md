@@ -3,7 +3,7 @@
 Drop-in `awsglue` + PySpark shim so unmodified AWS Glue 6 job scripts run locally on Sail (Rust Spark Connect server), no JVM.
 
 - Docs: `README.md` (quick start) and `docs/` (index `docs/README.md`): user guides in `docs/user/` (behaviour, config, compatibility = what's real vs stubbed, `s3-and-aws.md` = S3 modes, write lock, AWS auth), `docs/architecture/overview.md`, `docs/developer/guide.md`, decisions in `docs/adr/` (`db.table` SQL resolution: ADR 0003).
-- Spike findings: `docs/research/spikes.md` (scripts removed; recover with `git show 6d9ad0e:spikes/<file>`). S5's SSO-profile spike was skipped; prytt now has an SSO token preflight (`prytt.aws`), but passthrough is still unverified against real AWS until someone runs `mise run test:s3-live`.
+- Spike findings: `docs/research/spikes.md` (scripts removed; recover with `git show 6d9ad0e:spikes/<file>`). S5's SSO-profile spike was skipped; passthrough reads with an SSO profile (`s3.profile`) were since verified against real AWS with `mise run test:s3-live` (2026-11-05: partitioned Parquet, partition columns discovered). Other credential types and Delta/Iceberg on S3 are still unverified.
 - Directory is still named `pritt/`; the project name is `prytt` everywhere else.
 - Before any change: follow `CONTRIBUTING.md` (branch names, PR titles, tests, done = `mise run ci` green), including its "For coding agents" section.
 
