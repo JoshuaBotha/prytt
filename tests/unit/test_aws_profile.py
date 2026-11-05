@@ -5,6 +5,7 @@ Sessions here start on the shared in-process Sail server (pytest plugin
 used with no passthrough table to register, so Sail never loads AWS config.
 """
 
+import json
 import os
 
 import pytest
@@ -253,3 +254,157 @@ def test_local_mode_logs_no_region(project, monkeypatch, start_session, capsys):
     start_session()
 
     assert region_lines(capsys.readouterr().err) == []
+
+
+SSO_SESSION_PROFILE = """
+[profile team-sso]
+sso_session = corp
+sso_account_id = 111122223333
+sso_role_name = ReadOnly
+[sso-session corp]
+sso_start_url = https://corp.awsapps.com/start
+sso_region = eu-west-1
+"""
+
+LEGACY_SSO_PROFILE = """
+[profile team-sso]
+sso_start_url = https://legacy.awsapps.com/start
+sso_region = eu-west-1
+sso_account_id = 111122223333
+sso_role_name = ReadOnly
+"""
+
+# The AWS CLI names a token's cache file by the SHA1 hex of the sso-session
+# name, or of the start URL for a legacy profile. Literals (from `shasum`),
+# so the tests don't re-derive the key the way prytt does.
+CACHE_FILES = {
+    "sso-session": "ee0bfd2552fbd840c02cc48b6e823320543c450f.json",  # "corp"
+    "legacy": "79e435d7a515078e81c9dffc35f38d5687ebd3a7.json",  # the start URL
+}
+SSO_PROFILES = pytest.mark.parametrize(
+    ("aws_config", "kind"),
+    [(SSO_SESSION_PROFILE, "sso-session"), (LEGACY_SSO_PROFILE, "legacy")],
+    ids=["sso-session", "legacy"],
+)
+SSO_PASSTHROUGH = '[s3]\nmode = "passthrough"\nprofile = "team-sso"\n'
+
+
+@pytest.fixture
+def sso_home(project, monkeypatch):
+    """A tmp ``HOME`` with an empty AWS CLI SSO cache dir."""
+    home = project / "home"
+    (home / ".aws" / "sso" / "cache").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    return home
+
+
+def cache_file(home, kind):
+    return home / ".aws" / "sso" / "cache" / CACHE_FILES[kind]
+
+
+def write_token(home, kind, expires_at):
+    cache_file(home, kind).write_text(
+        json.dumps({"accessToken": "prytt-test", "expiresAt": expires_at})
+    )
+
+
+@SSO_PROFILES
+def test_an_sso_profile_with_an_expired_token_raises_with_the_login_command(
+    project, monkeypatch, start_session, sso_home, aws_config, kind
+):
+    (project / "aws-config").write_text(aws_config)
+    write_token(sso_home, kind, "2020-01-01T00:00:00Z")
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    with pytest.raises(RuntimeError, match="expired") as info:
+        start_session()
+
+    assert "run: aws sso login --profile team-sso" in str(info.value)
+
+
+@SSO_PROFILES
+def test_an_sso_profile_with_an_unexpired_token_starts(
+    project, monkeypatch, start_session, sso_home, capsys, aws_config, kind
+):
+    (project / "aws-config").write_text(aws_config)
+    write_token(sso_home, kind, "2999-01-01T00:00:00Z")
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    start_session()
+
+    assert " WARN " not in capsys.readouterr().err
+
+
+@SSO_PROFILES
+def test_an_sso_profile_without_a_cached_token_raises_with_the_login_command(
+    project, monkeypatch, start_session, sso_home, aws_config, kind
+):
+    (project / "aws-config").write_text(aws_config)
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    with pytest.raises(RuntimeError, match="no SSO token") as info:
+        start_session()
+
+    assert "run: aws sso login --profile team-sso" in str(info.value)
+
+
+def test_a_token_for_another_sso_session_does_not_count(
+    project, monkeypatch, start_session, sso_home
+):
+    (project / "aws-config").write_text(SSO_SESSION_PROFILE)
+    write_token(sso_home, "legacy", "2999-01-01T00:00:00Z")
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    with pytest.raises(RuntimeError, match="aws sso login --profile team-sso"):
+        start_session()
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["{not json", '{"accessToken": "prytt-test"}', '{"expiresAt": "next tuesday"}'],
+    ids=["corrupt", "no-expiry", "bad-expiry"],
+)
+def test_an_unreadable_cached_token_warns_and_the_session_starts(
+    project, monkeypatch, start_session, sso_home, capsys, content
+):
+    (project / "aws-config").write_text(SSO_SESSION_PROFILE)
+    cache_file(sso_home, "sso-session").write_text(content)
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    start_session()
+
+    warns = [line for line in capsys.readouterr().err.splitlines() if " WARN " in line]
+    assert len(warns) == 1
+    assert "SSO token" in warns[0] and "team-sso" in warns[0]
+
+
+def test_no_sso_cache_dir_warns_and_the_session_starts(project, monkeypatch, start_session, capsys):
+    monkeypatch.setenv("HOME", str(project / "empty-home"))
+    (project / "aws-config").write_text(SSO_SESSION_PROFILE)
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    start_session()
+
+    warns = [line for line in capsys.readouterr().err.splitlines() if " WARN " in line]
+    assert len(warns) == 1
+    assert "SSO token cache" in warns[0] and "aws sso login --profile team-sso" in warns[0]
+
+
+@pytest.mark.parametrize(
+    ("aws_config", "toml"),
+    [
+        ("[profile team-sso]\nregion = eu-west-1\n", SSO_PASSTHROUGH),
+        (SSO_SESSION_PROFILE, '[s3]\nprofile = "team-sso"\n'),
+    ],
+    ids=["non-sso-profile", "local-mode"],
+)
+def test_no_sso_check_for_a_non_sso_profile_or_without_passthrough(
+    project, monkeypatch, start_session, sso_home, capsys, aws_config, toml
+):
+    """The cache is empty, so any check would raise."""
+    (project / "aws-config").write_text(aws_config)
+    configure(project, monkeypatch, toml)
+
+    start_session()
+
+    assert " WARN " not in capsys.readouterr().err

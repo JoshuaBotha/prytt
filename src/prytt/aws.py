@@ -19,8 +19,12 @@ Interface:
   is overridden with a ``WARN`` naming both. Without ``s3.profile``, AWS env
   vars are left alone. When passthrough is in use and ``s3.profile`` is set,
   ``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY`` in the env raise
-  ``ValueError`` (the chain would prefer them over the profile). Logs at
-  most once per ``Config``.
+  ``ValueError`` (the chain would prefer them over the profile). In the same
+  case, if the profile (read from ``AWS_CONFIG_FILE``) is an SSO profile, its
+  AWS CLI SSO token (``$HOME/.aws/sso/cache``) must exist and be unexpired,
+  else ``RuntimeError`` naming ``aws sso login --profile <profile>``; a
+  cache prytt can't find or parse only logs a ``WARN``. Logs at most once
+  per ``Config``.
 """
 
 import os
@@ -58,6 +62,8 @@ def prepare_session(cfg=None) -> None:
         _check_no_static_keys(profile)
     if profile is not None:
         _export_profile(profile)
+    if profile is not None and passthrough:
+        _check_sso_token(os.environ, profile)
     if passthrough:
         _log_region(os.environ)
     _process_profile = profile
@@ -101,19 +107,97 @@ def _export_profile(profile: str) -> None:
     log("INFO", f"AWS_PROFILE={profile} (s3.profile)")
 
 
-def _profile_region(env, profile: str) -> str | None:
-    """``region`` of ``profile`` in the AWS config file, if it can be read."""
-    import configparser
+def _home(env):
     from pathlib import Path
 
-    config_file = Path(env.get("AWS_CONFIG_FILE") or Path.home() / ".aws" / "config")
-    parser = configparser.ConfigParser()
+    return Path(env["HOME"]) if env.get("HOME") else Path.home()
+
+
+def _read_aws_config(env):
+    """The AWS config file as a ``ConfigParser``, or ``None`` if unreadable."""
+    import configparser
+
+    config_file = env.get("AWS_CONFIG_FILE") or _home(env) / ".aws" / "config"
+    parser = configparser.ConfigParser(interpolation=None)
     try:
-        parser.read(config_file)
-    except configparser.Error:
+        parser.read(config_file, encoding="utf-8")
+    except (configparser.Error, UnicodeDecodeError):
         return None
-    section = "default" if profile == "default" else f"profile {profile}"
-    return parser.get(section, "region", fallback=None)
+    return parser
+
+
+def _profile_section(profile: str) -> str:
+    return "default" if profile == "default" else f"profile {profile}"
+
+
+def _profile_region(env, profile: str) -> str | None:
+    """``region`` of ``profile`` in the AWS config file, if it can be read."""
+    parser = _read_aws_config(env)
+    if parser is None:
+        return None
+    return parser.get(_profile_section(profile), "region", fallback=None)
+
+
+def _sso_cache_key(env, profile: str) -> str | None:
+    """What the AWS CLI hashes to name ``profile``'s SSO token cache file:
+    the ``sso_session`` name, else the legacy ``sso_start_url``. ``None`` for
+    a non-SSO profile (or an unreadable config file)."""
+    parser = _read_aws_config(env)
+    if parser is None:
+        return None
+    section = _profile_section(profile)
+    return parser.get(section, "sso_session", fallback=None) or parser.get(
+        section, "sso_start_url", fallback=None
+    )
+
+
+def _check_sso_token(env, profile: str) -> None:
+    """Raise if ``profile`` is an SSO profile whose cached token is missing or
+    expired. Best effort: the cache layout belongs to the AWS CLI, so a cache
+    prytt can't read only logs a ``WARN``.
+
+    Layout, as botocore (which the AWS CLI v2 shares) writes it:
+    ``botocore.utils.SSOTokenLoader._generate_cache_key`` is
+    ``hashlib.sha1(session_name or start_url).hexdigest()``,
+    ``botocore.utils.JSONFileCache`` stores it as ``<key>.json``, in
+    ``~/.aws/sso/cache`` (``botocore.credentials.SSOProvider._SSO_TOKEN_CACHE_DIR``),
+    and the JSON has ``expiresAt`` as an ISO-8601 UTC timestamp.
+    """
+    import hashlib
+    import json
+    from datetime import UTC, datetime
+
+    key = _sso_cache_key(env, profile)
+    if key is None:
+        return
+    login = f"run: aws sso login --profile {profile}"
+    cache_dir = _home(env) / ".aws" / "sso" / "cache"
+    if not cache_dir.is_dir():
+        log(
+            "WARN",
+            f"no AWS CLI SSO token cache at {cache_dir.as_posix()} for AWS profile "
+            f"{profile!r}; skipping the SSO token check (if S3 access fails, {login})",
+        )
+        return
+    cache_file = cache_dir / f"{hashlib.sha1(key.encode()).hexdigest()}.json"
+    if not cache_file.exists():
+        raise RuntimeError(f"prytt: no SSO token for AWS profile {profile!r} (s3.profile); {login}")
+    try:
+        expires_at = datetime.fromisoformat(json.loads(cache_file.read_text())["expiresAt"])
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        log(
+            "WARN",
+            f"can't read the SSO token cache {cache_file.as_posix()} for AWS profile "
+            f"{profile!r} ({type(exc).__name__}: {exc}); skipping the SSO token check",
+        )
+        return
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+    if expires_at <= datetime.now(UTC):
+        raise RuntimeError(
+            f"prytt: the SSO token for AWS profile {profile!r} (s3.profile) expired at "
+            f"{expires_at.isoformat()}; {login}"
+        )
 
 
 def _log_region(env) -> None:

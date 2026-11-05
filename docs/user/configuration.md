@@ -132,6 +132,15 @@ by setting `AWS_PROFILE` in the process before Sail starts.
   environment, the session start raises `ValueError`: the AWS chain prefers
   environment keys and would silently ignore the profile. Unset the keys or
   drop `s3.profile`. Purely local runs don't check.
+- **SSO token checked up front.** In the same case, if the profile's
+  section in the AWS config file (`AWS_CONFIG_FILE`, default
+  `~/.aws/config`) has `sso_session` or a legacy `sso_start_url`, prytt
+  looks for its token in the AWS CLI cache (`$HOME/.aws/sso/cache`). A
+  missing or expired token raises `RuntimeError` with
+  `run: aws sso login --profile <profile>`, instead of an opaque Sail error
+  at the first action. The cache layout is AWS CLI internal, so if prytt
+  can't find the cache directory or parse the token file it logs a `WARN`
+  and carries on. Non-SSO profiles and purely local runs aren't checked.
 - **No region needed.** Sail discovers each bucket's region. When
   passthrough is in use, prytt logs one `INFO` line with the region it
   found (`AWS_REGION`, `AWS_DEFAULT_REGION`, or the configured profile's
@@ -239,9 +248,10 @@ option) are ignored with a `WARN`.
 | `SAIL_CATALOG__LIST`, `SAIL_CATALOG__DEFAULT_CATALOG` | read, set | Sail's catalogs. prytt declares `sail` (default) and `glue_catalog` unless already set. Not touched for an external server. |
 | `AWS_PROFILE` | read, set | Set to `s3.profile` before Sail starts, when that is set (a different shell value is overridden with a `WARN`). Otherwise left alone. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | read | With `s3.profile` set and passthrough in use, either one is an error ([AWS profile](#aws-profile-s3profile)). |
-| `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_CONFIG_FILE` | read | Only for the region `INFO` line when passthrough is in use; no region is required. |
+| `AWS_REGION`, `AWS_DEFAULT_REGION` | read | Only for the region `INFO` line when passthrough is in use; no region is required. |
+| `AWS_CONFIG_FILE`, `HOME` | read | Where prytt finds the AWS config file (region line, SSO profile detection) and the AWS CLI SSO token cache for the [SSO check](#aws-profile-s3profile). |
 
-prytt never reads credentials itself; Sail does, through the AWS credential
+prytt never reads credentials itself (the SSO check only reads a token's expiry); Sail does, through the AWS credential
 chain, from the `AWS_*` variables in the process.
 
 Any other `SAIL_*` variable you set reaches Sail unchanged, because the
