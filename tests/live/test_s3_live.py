@@ -11,14 +11,15 @@ Optional:
 - ``PRYTT_TEST_S3_PARTITIONS``: comma-separated partition columns the table
   must expose, if the data is partitioned (``key=value/`` directories).
 
-Read-only: the one write goes through the S3 write lock, which raises before
-Sail. This directory is kept apart from ``tests/unit`` and
-``tests/acceptance`` (own pytest process, no shared conftest) because those
-tests point AWS at a dead endpoint with fake keys, and Sail loads AWS config
-once per process.
+Read-only: the one write targets a new sibling prefix next to the table and
+goes through the S3 write lock, which raises before Sail. This directory is
+kept apart from ``tests/unit`` and ``tests/acceptance`` (own pytest process,
+no shared conftest) because those tests point AWS at a dead endpoint with
+fake keys, and Sail loads AWS config once per process.
 """
 
 import os
+import uuid
 
 import pytest
 
@@ -64,10 +65,15 @@ def test_passthrough_table_reads_real_s3_data(live_session):
     assert df.limit(1).count() == 1, f"no rows at {URI}"
 
 
-def test_write_to_the_same_prefix_is_blocked_by_the_lock(live_session):
+def test_a_write_next_to_the_table_is_blocked_by_the_lock(live_session):
     assert "PRYTT_ALLOW_S3_WRITES" not in os.environ
     df = live_session.createDataFrame([(1,)], "id int")
-    target = f"{URI.rstrip('/')}/_prytt_live_write_check/"
+    # A new sibling of the table, never inside it, and the default
+    # error-if-exists mode: if the lock ever failed open, nothing existing is
+    # touched.
+    base = URI.rstrip("/")
+    parent = base.rpartition("/")[0] if base.count("/") > 2 else base  # s3://bucket: its root
+    target = f"{parent}/_prytt_live_write_check_{uuid.uuid4().hex}/"
 
     with pytest.raises(PryttS3WriteBlocked):
-        df.write.mode("overwrite").parquet(target)
+        df.write.parquet(target)

@@ -316,10 +316,20 @@ def cache_file(home, kind):
     return home / ".aws" / "sso" / "cache" / CACHE_FILES[kind]
 
 
-def write_token(home, kind, expires_at):
+def write_token(home, kind, expires_at, **extra):
     cache_file(home, kind).write_text(
-        json.dumps({"accessToken": "prytt-test", "expiresAt": expires_at})
+        json.dumps({"accessToken": "prytt-test", "expiresAt": expires_at, **extra})
     )
+
+
+# What `aws sso login` caches for an sso-session profile, so the SDK can
+# refresh the access token itself.
+REFRESHABLE = {
+    "refreshToken": "prytt-test",
+    "clientId": "prytt-test",
+    "clientSecret": "prytt-test",
+    "registrationExpiresAt": "2999-01-01T00:00:00Z",
+}
 
 
 @SSO_PROFILES
@@ -371,6 +381,88 @@ def test_a_token_for_another_sso_session_does_not_count(
 
     with pytest.raises(RuntimeError, match="aws sso login --profile team-sso"):
         start_session()
+
+
+def test_an_expired_but_refreshable_sso_session_token_warns_and_the_session_starts(
+    project, monkeypatch, start_session, sso_home, capsys
+):
+    (project / "aws-config").write_text(SSO_SESSION_PROFILE)
+    write_token(sso_home, "sso-session", "2020-01-01T00:00:00Z", **REFRESHABLE)
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    start_session()
+
+    warns = [line for line in capsys.readouterr().err.splitlines() if " WARN " in line]
+    assert len(warns) == 1
+    assert "refresh" in warns[0] and "aws sso login --profile team-sso" in warns[0]
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        {**REFRESHABLE, "registrationExpiresAt": "2020-01-01T00:00:00Z"},
+        *({k: v for k, v in REFRESHABLE.items() if k != missing} for missing in REFRESHABLE),
+    ],
+    ids=["registration-expired", *(f"no-{key}" for key in REFRESHABLE)],
+)
+def test_an_expired_sso_session_token_the_sdk_cannot_refresh_raises(
+    project, monkeypatch, start_session, sso_home, token
+):
+    (project / "aws-config").write_text(SSO_SESSION_PROFILE)
+    write_token(sso_home, "sso-session", "2020-01-01T00:00:00Z", **token)
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    with pytest.raises(RuntimeError, match=r"expired.*aws sso login --profile team-sso"):
+        start_session()
+
+
+def test_an_expired_legacy_sso_token_raises_even_with_refresh_fields(
+    project, monkeypatch, start_session, sso_home
+):
+    """Legacy ``sso_start_url`` profiles use the token as cached; no refresh."""
+    (project / "aws-config").write_text(LEGACY_SSO_PROFILE)
+    write_token(sso_home, "legacy", "2020-01-01T00:00:00Z", **REFRESHABLE)
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    with pytest.raises(RuntimeError, match="expired"):
+        start_session()
+
+
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="needs POSIX permissions that apply to the current user",
+)
+def test_a_cache_dir_prytt_cannot_read_warns_and_the_session_starts(
+    project, monkeypatch, start_session, sso_home, capsys
+):
+    """Permission denied is not "no token": the SDK may still read it."""
+    (project / "aws-config").write_text(SSO_SESSION_PROFILE)
+    write_token(sso_home, "sso-session", "2999-01-01T00:00:00Z")
+    cache_dir = sso_home / ".aws" / "sso" / "cache"
+    cache_dir.chmod(0o200)  # not listable or searchable
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+    try:
+        start_session()
+    finally:
+        cache_dir.chmod(0o700)
+
+    warns = [line for line in capsys.readouterr().err.splitlines() if " WARN " in line]
+    assert len(warns) == 1
+    assert "can't read" in warns[0] and "team-sso" in warns[0]
+
+
+def test_a_cache_entry_that_is_not_a_file_warns_and_the_session_starts(
+    project, monkeypatch, start_session, sso_home, capsys
+):
+    (project / "aws-config").write_text(SSO_SESSION_PROFILE)
+    cache_file(sso_home, "sso-session").mkdir()
+    configure(project, monkeypatch, SSO_PASSTHROUGH)
+
+    start_session()
+
+    warns = [line for line in capsys.readouterr().err.splitlines() if " WARN " in line]
+    assert len(warns) == 1
+    assert "can't read" in warns[0] and "team-sso" in warns[0]
 
 
 @pytest.mark.parametrize(

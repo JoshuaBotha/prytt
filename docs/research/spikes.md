@@ -73,7 +73,7 @@ Startup cost (`python -X importtime -c pass`):
     s3://ookla-open-data/parquet/performance/type=fixed/year=2019/quarter=1/2019-01-01_performance_fixed_tiles.parquet
   ```
   `OK` means passthrough works with the ambient profile. Pick a smaller object from your own bucket to make it quicker.
-- Passthrough mode should require a region (`AWS_REGION` or profile region) and say so in the error message.
+- ~~Passthrough mode should require a region (`AWS_REGION` or profile region) and say so in the error message.~~ **Superseded:** no region needed, Sail 0.7.3 discovers each bucket's region; prytt only logs one. See [S3 and AWS](../user/s3-and-aws.md#region).
 
 ## S6: Python UDFs (`s6_udf.py`)
 
@@ -111,5 +111,5 @@ Caveats for DynamicFrame `filter` / `map` v2:
 - §9 format mapping: `orc` unsupported.
 - §9 DynamicFrame `filter`/`map`: v2 via `mapInPandas` confirmed viable; add NaN→None and traceback re-raise requirements.
 - §10 Iceberg: T10 in scope; add `SAIL_CATALOG__LIST`, absolute `spark.sql.warehouse.dir`, re-register-on-start.
-- §10 S3 passthrough: viable; needs region; SSO check skipped, mode is best-effort.
+- §10 S3 passthrough: viable; needs region; SSO check skipped, mode is best-effort. **Superseded:** no region needed, and prytt now checks the SSO token before Sail starts; see [S3 and AWS](../user/s3-and-aws.md).
 - SQL catalog design note (now `docs/adr/0003-mapped-tables-as-sail-external-tables.md`): S-SQL1 positive → approach 1.

@@ -259,10 +259,22 @@ RuntimeError: prytt: no SSO token for AWS profile 'team-sso' (s3.profile); run: 
 RuntimeError: prytt: the SSO token for AWS profile 'team-sso' (s3.profile) expired at 2026-11-05T08:00:00+00:00; run: aws sso login --profile team-sso
 ```
 
+An expired token on an `sso_session` profile that the AWS SDK can refresh
+by itself (the cache entry has a refresh token and a client registration
+that hasn't expired, as `aws sso login` writes) only logs a `WARN`, and Sail
+refreshes it on first S3 access:
+
+```
+[prytt] WARN the SSO token for AWS profile 'team-sso' (s3.profile) expired at 2026-11-05T08:00:00+00:00; the AWS SDK will try to refresh it (if S3 access fails, run: aws sso login --profile team-sso)
+```
+
+Legacy `sso_start_url` profiles can't refresh, so an expired token there
+always stops the run.
+
 The cache layout belongs to the AWS CLI, so if prytt can't find the cache
-directory or read the token file it logs a `WARN` and carries on. The check
-only runs for the profile set through `s3.profile`, and prytt never logs in
-or refreshes a token itself. prytt finds the AWS config through
+directory or read or parse the token file (permission denied, for example)
+it logs a `WARN` and carries on. The check only runs for the profile set
+through `s3.profile`, and prytt never logs in or refreshes a token itself. prytt finds the AWS config through
 `AWS_CONFIG_FILE` (default `~/.aws/config`) and the cache under `$HOME`.
 
 ### Static keys shadow a profile

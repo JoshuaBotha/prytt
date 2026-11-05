@@ -27,6 +27,9 @@ Interface:
 - ``is_passthrough(mode) -> bool``: whether a table with that effective mode
   is a passthrough table (reads and writes its real ``s3://`` location; the
   S3 write lock blocks writes to it). Otherwise it is a local table.
+- ``passthrough_in_use(cfg=None) -> bool``: whether the global ``s3.mode``
+  or any mapped table's effective mode is passthrough, so Sail may read
+  real S3 (``prytt.aws`` checks the AWS setup only then).
 - ``resolve_table(database, table_name) -> CatalogTable``: look up
   ``catalog."database.table"`` in config (exact key first, then
   case-insensitive). Unmapped tables raise ``CatalogTableNotFound`` (a
@@ -87,6 +90,13 @@ def is_passthrough(mode: str) -> bool:
     """Whether a table with this effective mode (``table_mode``) is a
     passthrough table: it reads and writes its real ``s3://`` location."""
     return mode == "passthrough"
+
+
+def passthrough_in_use(cfg=None) -> bool:
+    cfg = config.get() if cfg is None else cfg
+    if is_passthrough(cfg.s3_mode):
+        return True
+    return any(is_passthrough(table_mode(table)[0]) for table in mapped_tables().values())
 
 
 def _s3_key(uri: str) -> str | None:

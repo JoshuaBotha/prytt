@@ -3,7 +3,7 @@
 Drop-in `awsglue` + PySpark shim so unmodified AWS Glue 6 job scripts run locally on Sail (Rust Spark Connect server), no JVM.
 
 - Docs: `README.md` (quick start) and `docs/` (index `docs/README.md`): user guides in `docs/user/` (behaviour, config, compatibility = what's real vs stubbed, `s3-and-aws.md` = S3 modes, write lock, AWS auth), `docs/architecture/overview.md`, `docs/developer/guide.md`, decisions in `docs/adr/` (`db.table` SQL resolution: ADR 0003).
-- Spike findings: `docs/research/spikes.md` (scripts removed; recover with `git show 6d9ad0e:spikes/<file>`). S5 SSO-profile check skipped by decision (S3 passthrough is best-effort).
+- Spike findings: `docs/research/spikes.md` (scripts removed; recover with `git show 6d9ad0e:spikes/<file>`). S5's SSO-profile spike was skipped; prytt now has an SSO token preflight (`prytt.aws`), but passthrough is still unverified against real AWS until someone runs `mise run test:s3-live`.
 - Directory is still named `pritt/`; the project name is `prytt` everywhere else.
 - Before any change: follow `CONTRIBUTING.md` (branch names, PR titles, tests, done = `mise run ci` green), including its "For coding agents" section.
 
@@ -43,6 +43,8 @@ mise is the single entry point for tooling, tasks and env vars, so a task runs t
 - Sail 0.7.3 SQL quirks: plain `USE db` doesn't parse (write `USE DATABASE db`; the database must exist); `spark.sql` takes one statement per call; `spark.catalog.tableExists` is case-sensitive and returns `False` for a `spark_catalog.`-prefixed name; `.collect()` on an `INSERT` result fails with "uint64 not supported in conversion to Arrow" (SQL commands already run at `spark.sql(...)`, so don't collect them).
 - `mapInPandas` under pandas 3: `NULL` strings arrive as `NaN` (convert to `None`); worker exceptions arrive as empty `PythonException()` (re-raise with traceback).
 - pyspark-client `SparkSession.__del__` shuts down a process-wide thread pool; if the GC runs it inside that pool's `submit()` it self-deadlocks (0% CPU hang). prytt replaces `__del__` (`pyspark_hooks.on_connect_session`, test `tests/unit/test_session_gc.py`). Tests that `builder.create()` an extra session should still `stop()` it.
+- Sail reads AWS settings only from `AWS_*` env vars (never `PRYTT_*`), and loads AWS config (credentials chain, profile) once per process, at the first S3 access (`sail-object-store` `DEFAULT_AWS_CONFIG` `OnceCell`). So prytt exports `AWS_PROFILE` before Sail starts and allows one `s3.profile` per process. For plain `s3://bucket` URLs Sail 0.7.3 discovers the bucket region and ignores `AWS_REGION` (used only with a custom endpoint).
+- Tests that fake AWS env in-process (dead `AWS_ENDPOINT_URL`, fake keys) poison Sail's AWS config for the rest of that process: real-S3 tests must never share a process with them. Hence `tests/live/` (no shared conftest) run alone by `mise run test:s3-live`.
 - Pre-commit hooks run `uv run --frozen ruff`, the version in `uv.lock`: bump ruff with `uv lock --upgrade-package ruff`, not in `.pre-commit-config.yaml`.
 - In-process Spark sessions (the `spark` fixture) belong in `tests/unit`, not `tests/acceptance`: a gRPC channel in the pytest process makes every later `subprocess` fork print gRPC fork warnings to stderr, breaking acceptance tests that assert a clean stderr.
 - A raise from an `on_new_session` callback leaves a built but unreturned session nobody can `stop()`, and the test run hangs at exit. Check config that should fail session setup before the build (`pyspark_hooks._wrap` calls `s3lock.check_config()` first).
