@@ -192,6 +192,9 @@ silently changes their query. Tests: `tests/acceptance/test_catalog_scripts.py`,
 - `mise run ci` sets `CI=true`, so strict mode is on: a test that relies on
   a `STUB` being tolerated must set `PRYTT_STRICT=0` itself.
 - The pytester plugin (`-p pytester`) is on for testing the pytest plugin.
+- Unit and acceptance runs ignore your `PRYTT_*` / `AWS_*` env (shell or
+  `mise.local.toml`): their conftests strip it (`tests/hermetic_env.py`). A
+  test that needs one sets it with `monkeypatch.setenv`.
 
 ### When a test hangs
 

@@ -36,6 +36,8 @@ prytt = "prytt.pytest_plugin"
 [tool.pytest.ini_options]
 # tests/live (marker s3_live) is opt-in, run only by `mise run test:s3-live`.
 testpaths = ["tests/unit", "tests/acceptance"]
+# For tests/hermetic_env.py, imported by the unit and acceptance conftests.
+pythonpath = ["tests"]
 addopts = "-p pytester"
 markers = ["s3_live: reads real S3 (opt-in, needs PRYTT_TEST_S3_URI and AWS credentials)"]
 # Hang diagnostics: at 60 s dump every thread's stack (non-fatal, works even if
