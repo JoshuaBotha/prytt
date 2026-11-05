@@ -25,7 +25,10 @@ def test_package_exports_dynamic_frame():
 
 
 def test_importing_awsglue_does_not_import_pyspark():
-    code = "import sys, awsglue, awsglue.context, awsglue.dynamicframe; print('pyspark' in sys.modules)"
+    code = (
+        "import sys, awsglue, awsglue.context, awsglue.dynamicframe; "
+        "print('pyspark' in sys.modules)"
+    )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
 
     assert out.stdout.strip() == "False"
@@ -34,7 +37,16 @@ def test_importing_awsglue_does_not_import_pyspark():
 def test_gluetypes_has_common_type_names():
     from awsglue import gluetypes
 
-    for name in ("StringType", "IntegerType", "LongType", "DoubleType", "BooleanType", "StructType", "ArrayType", "Field"):
+    for name in (
+        "StringType",
+        "IntegerType",
+        "LongType",
+        "DoubleType",
+        "BooleanType",
+        "StructType",
+        "ArrayType",
+        "Field",
+    ):
         assert hasattr(gluetypes, name), name
 
     field = gluetypes.Field("id", gluetypes.IntegerType())

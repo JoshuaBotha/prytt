@@ -15,8 +15,10 @@ Check tiers:
 
 Run locally (prytt installed):
   python glue_selftest_job.py --JOB_NAME selftest
-  python glue_selftest_job.py --JOB_NAME selftest --base_path s3://my-bucket/selftest --with_iceberg true
-  python glue_selftest_job.py   # JOB_NAME is None (logged WARN); or set PRYTT_ARG_JOB_NAME / [args] in prytt.toml
+  python glue_selftest_job.py --JOB_NAME selftest \
+      --base_path s3://my-bucket/selftest --with_iceberg true
+  python glue_selftest_job.py   # JOB_NAME is None (logged WARN); or set
+                                # PRYTT_ARG_JOB_NAME / [args] in prytt.toml
 
 Run on AWS Glue 6:
   Job parameters:
@@ -26,7 +28,8 @@ Run on AWS Glue 6:
     --datalake-formats iceberg
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
            --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
-           --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+           --conf spark.sql.catalog.glue_catalog.catalog-impl=\
+                  org.apache.iceberg.aws.glue.GlueCatalog
            --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
            --conf spark.sql.catalog.glue_catalog.warehouse=s3://<your-bucket>/glue-selftest/warehouse
   Every run writes under <base_path>/<run_id>/, so reruns never collide.
@@ -37,16 +40,9 @@ Run on AWS Glue 6:
 import sys
 import traceback
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from awsglue import DynamicFrame
-from awsglue.context import GlueContext
-from awsglue.dynamicframe import DynamicFrameCollection
-from awsglue.job import Job
-from awsglue.transforms import *
-from awsglue.utils import getResolvedOptions
-from awsgluedq.transforms import EvaluateDataQuality
 from pyspark.context import SparkContext
 from pyspark.sql import Row, Window
 from pyspark.sql import functions as F
@@ -63,14 +59,27 @@ from pyspark.sql.types import (
     TimestampType,
 )
 
+from awsglue import DynamicFrame
+from awsglue.context import GlueContext
+from awsglue.dynamicframe import DynamicFrameCollection
+from awsglue.job import Job
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from awsgluedq.transforms import EvaluateDataQuality
+
 # --------------------------------------------------------------------------
 # Boilerplate (Glue Studio shape) plus optional arguments
 # --------------------------------------------------------------------------
 
 args = getResolvedOptions(sys.argv, ["JOB_NAME"])
 optional = {}
-for name, default in (("base_path", "s3://prytt-selftest-bucket/glue-selftest"), ("with_iceberg", "false")):
-    optional[name] = getResolvedOptions(sys.argv, [name])[name] if f"--{name}" in sys.argv else default
+for name, default in (
+    ("base_path", "s3://prytt-selftest-bucket/glue-selftest"),
+    ("with_iceberg", "false"),
+):
+    optional[name] = (
+        getResolvedOptions(sys.argv, [name])[name] if f"--{name}" in sys.argv else default
+    )
 
 sc = SparkContext()
 glueContext = GlueContext(sc)
@@ -79,7 +88,7 @@ job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
 logger = glueContext.get_logger()
 
-RUN_ID = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:6]
+RUN_ID = datetime.now(UTC).strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:6]
 BASE = optional["base_path"].rstrip("/") + "/" + RUN_ID
 WITH_ICEBERG = optional["with_iceberg"].lower() in ("1", "true", "yes")
 logger.info(f"selftest run_id={RUN_ID} base={BASE} iceberg={WITH_ICEBERG}")
@@ -96,8 +105,10 @@ def check(name, tier="EXACT"):
         try:
             detail = fn()
             RESULTS.append((tier, name, "PASS", "" if detail is None else str(detail)))
-        except Exception as exc:  # noqa: BLE001 - we want every failure reported
-            RESULTS.append((tier, name, "FAIL", f"{type(exc).__name__}: {exc}".splitlines()[0][:160]))
+        except Exception as exc:  # broad on purpose: report every failure
+            RESULTS.append(
+                (tier, name, "FAIL", f"{type(exc).__name__}: {exc}".splitlines()[0][:160])
+            )
             print(f"\n--- {tier} {name} failed ---\n{traceback.format_exc()}", file=sys.stderr)
         return fn
 
@@ -113,7 +124,9 @@ def rows(df, *cols, order=None):
     """Collect as sorted list of tuples (order-independent comparison)."""
     data = df.select(*cols) if cols else df
     out = [tuple(r) for r in data.collect()]
-    return sorted(out, key=lambda t: tuple((v is None, str(v)) for v in t)) if order is None else out
+    return (
+        sorted(out, key=lambda t: tuple((v is None, str(v)) for v in t)) if order is None else out
+    )
 
 
 def path(*parts):
@@ -131,7 +144,12 @@ customer_schema = StructType(
         StructField("tier", StringType(), True),
         StructField(
             "address",
-            StructType([StructField("city", StringType(), True), StructField("country", StringType(), True)]),
+            StructType(
+                [
+                    StructField("city", StringType(), True),
+                    StructField("country", StringType(), True),
+                ]
+            ),
             True,
         ),
         StructField("tags", ArrayType(StringType()), True),
@@ -179,14 +197,24 @@ def ts(s):
 
 orders_data = [
     (101, 1, Decimal("10.50"), "10.50", "PAID", ts("2025-01-01 09:00:00"), [("A", 1, 10.5)]),
-    (102, 1, Decimal("99.99"), "99.99", "PAID", ts("2025-01-03 12:30:00"), [("B", 3, 20.0), ("C", 1, 39.99)]),
+    (
+        102,
+        1,
+        Decimal("99.99"),
+        "99.99",
+        "PAID",
+        ts("2025-01-03 12:30:00"),
+        [("B", 3, 20.0), ("C", 1, 39.99)],
+    ),
     (103, 2, Decimal("5.00"), "5", "REFUNDED", ts("2025-01-04 08:15:00"), [("A", 1, 5.0)]),
     (104, 3, Decimal("250.00"), "250.00", "PAID", ts("2025-02-10 18:45:00"), [("D", 5, 50.0)]),
     (105, 3, None, None, "PENDING", ts("2025-02-11 07:00:00"), []),
     (106, 9, Decimal("1.00"), "1.0", "PAID", ts("2025-02-12 23:59:59"), None),  # orphan customer
     (107, 5, Decimal("42.42"), "42.42", "PAID", ts("2025-03-01 00:00:00"), [("E", 2, 21.21)]),
 ]
-orders_df = spark.createDataFrame(orders_data, order_schema).withColumn("order_month", F.date_format("ts", "yyyy-MM"))
+orders_df = spark.createDataFrame(orders_data, order_schema).withColumn(
+    "order_month", F.date_format("ts", "yyyy-MM")
+)
 
 customers_dyf = DynamicFrame.fromDF(customers_df, glueContext, "customers_dyf")
 orders_dyf = DynamicFrame.fromDF(orders_df, glueContext, "orders_dyf")
@@ -203,7 +231,10 @@ def _():
     eq(got["B"], "two", "B")
 
 
-@check("getResolvedOptions: missing option (Glue raises; prytt returns None unless strict)", tier="SMOKE")
+@check(
+    "getResolvedOptions: missing option (Glue raises; prytt returns None unless strict)",
+    tier="SMOKE",
+)
 def _():
     try:
         got = getResolvedOptions(["prog", "--A", "1"], ["A", "MISSING"])
@@ -310,18 +341,26 @@ def _():
 
 @check("SelectFields / DropFields / RenameField")
 def _():
-    sel = SelectFields.apply(frame=customers_dyf, paths=["cust_id", "tier"], transformation_ctx="sel").toDF()
+    sel = SelectFields.apply(
+        frame=customers_dyf, paths=["cust_id", "tier"], transformation_ctx="sel"
+    ).toDF()
     eq(sorted(sel.columns), ["cust_id", "tier"])
     drp = DropFields.apply(frame=customers_dyf, paths=["attrs"], transformation_ctx="drp").toDF()
     eq("attrs" in drp.columns, False)
-    ren = RenameField.apply(frame=customers_dyf, old_name="tier", new_name="level", transformation_ctx="ren").toDF()
+    ren = RenameField.apply(
+        frame=customers_dyf, old_name="tier", new_name="level", transformation_ctx="ren"
+    ).toDF()
     eq("level" in ren.columns and "tier" not in ren.columns, True)
 
 
 @check("Join on differently named keys (inner)")
 def _():
     joined = Join.apply(
-        frame1=orders_dyf, frame2=customers_dyf, keys1=["customer_id"], keys2=["cust_id"], transformation_ctx="j"
+        frame1=orders_dyf,
+        frame2=customers_dyf,
+        keys1=["customer_id"],
+        keys2=["cust_id"],
+        transformation_ctx="j",
     ).toDF()
     eq(joined.count(), 6, "orphan order 106 dropped")
     eq({"order_id", "cust_id", "customer_id", "name"} <= set(joined.columns), True, "columns")
@@ -337,7 +376,9 @@ def _():
         .withColumn("typed_null", F.lit(None).cast("string"))
         .withColumn("nested", F.struct(F.lit(1).alias("keep"), F.lit(None).alias("gone")))
     )
-    out = DropNullFields.apply(frame=DynamicFrame.fromDF(src, glueContext, "wn"), transformation_ctx="dnf").toDF()
+    out = DropNullFields.apply(
+        frame=DynamicFrame.fromDF(src, glueContext, "wn"), transformation_ctx="dnf"
+    ).toDF()
     eq("always_null" in out.columns, False, "NullType column dropped")
     eq("typed_null" in out.columns, True, "typed all-null column kept")
     eq("tier" in out.columns, True, "partly-null column kept")
@@ -346,7 +387,9 @@ def _():
 
 @check("ResolveChoice transform cast spec")
 def _():
-    out = ResolveChoice.apply(frame=orders_dyf, specs=[("amount_str", "cast:double")], transformation_ctx="rc").toDF()
+    out = ResolveChoice.apply(
+        frame=orders_dyf, specs=[("amount_str", "cast:double")], transformation_ctx="rc"
+    ).toDF()
     eq(dict(out.dtypes)["amount_str"], "double")
 
 
@@ -362,7 +405,9 @@ def _():
 
 @check("Filter.apply (prytt: pass-through)", tier="SMOKE")
 def _():
-    out = Filter.apply(frame=orders_dyf, f=lambda r: r["status"] == "PAID", transformation_ctx="flt")
+    out = Filter.apply(
+        frame=orders_dyf, f=lambda r: r["status"] == "PAID", transformation_ctx="flt"
+    )
     return f"rows={out.count()} (Glue expects 5, prytt v1 returns 7)"
 
 
@@ -378,24 +423,35 @@ def _():
 
 @check("SplitFields / SplitRows return collections", tier="SMOKE")
 def _():
-    sf = SplitFields.apply(frame=customers_dyf, paths=["cust_id", "name"], name1="left", name2="right")
-    sr = SplitRows.apply(frame=orders_dyf, comparison_dict={"customer_id": {">": 2}}, name1="hi", name2="lo")
+    sf = SplitFields.apply(
+        frame=customers_dyf, paths=["cust_id", "name"], name1="left", name2="right"
+    )
+    sr = SplitRows.apply(
+        frame=orders_dyf, comparison_dict={"customer_id": {">": 2}}, name1="hi", name2="lo"
+    )
     return f"split_fields={sorted(sf.keys())} split_rows={sorted(sr.keys())}"
 
 
 @check("Relationalize / UnnestFrame / Spigot", tier="SMOKE")
 def _():
-    rel = Relationalize.apply(frame=orders_dyf, staging_path=path("tmp", "relationalize"), name="root")
+    rel = Relationalize.apply(
+        frame=orders_dyf, staging_path=path("tmp", "relationalize"), name="root"
+    )
     un = UnnestFrame.apply(frame=customers_dyf)
     sp = Spigot.apply(frame=orders_dyf, path=path("spigot"), options={"topk": 2})
-    return f"relationalize keys={sorted(rel.keys())} unnest_cols={len(un.toDF().columns)} spigot_rows={sp.count()}"
+    return (
+        f"relationalize keys={sorted(rel.keys())} unnest_cols={len(un.toDF().columns)} "
+        f"spigot_rows={sp.count()}"
+    )
 
 
 @check("EvaluateDataQuality.apply / process_rows", tier="SMOKE")
 def _():
     ruleset = """Rules = [ ColumnCount > 0, IsComplete "order_id", RowCount between 1 and 100 ]"""
     EvaluateDataQuality.apply(
-        frame=orders_dyf, ruleset=ruleset, publishing_options={"dataQualityEvaluationContext": "selftest_dq"}
+        frame=orders_dyf,
+        ruleset=ruleset,
+        publishing_options={"dataQualityEvaluationContext": "selftest_dq"},
     )
     dfc = EvaluateDataQuality().process_rows(
         frame=orders_dyf,
@@ -449,7 +505,10 @@ def _():
     glueContext.write_dynamic_frame.from_options(
         frame=flat_orders,
         connection_type="s3",
-        connection_options={"path": path("parquet", "orders_by_month"), "partitionKeys": ["order_month"]},
+        connection_options={
+            "path": path("parquet", "orders_by_month"),
+            "partitionKeys": ["order_month"],
+        },
         format="parquet",
         transformation_ctx="w_part",
     )
@@ -541,10 +600,13 @@ def _():
 def _():
     try:
         glueContext.write_dynamic_frame.from_options(
-            frame=flat_orders, connection_type="s3", connection_options={"path": path("orc", "orders")}, format="orc"
+            frame=flat_orders,
+            connection_type="s3",
+            connection_options={"path": path("orc", "orders")},
+            format="orc",
         )
         return "orc write ok"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return f"raised {type(exc).__name__}"
 
 
@@ -574,7 +636,11 @@ def _():
     )
     eq(
         [tuple(r) for r in df.collect()],
-        [("Grace", 1, Decimal("250.00")), ("Ada", 2, Decimal("110.49")), ("Barbara", 1, Decimal("42.42"))],
+        [
+            ("Grace", 1, Decimal("250.00")),
+            ("Ada", 2, Decimal("110.49")),
+            ("Barbara", 1, Decimal("42.42")),
+        ],
     )
 
 
@@ -596,7 +662,11 @@ def _():
 @check("DataFrame window API: rank + dense_rank")
 def _():
     w = Window.partitionBy("tier").orderBy(F.col("signup_date").asc_nulls_last())
-    df = customers_df.filter("tier = 'gold'").withColumn("r", F.rank().over(w)).withColumn("d", F.dense_rank().over(w))
+    df = (
+        customers_df.filter("tier = 'gold'")
+        .withColumn("r", F.rank().over(w))
+        .withColumn("d", F.dense_rank().over(w))
+    )
     eq(rows(df, "name", "r", "d"), [("Ada", 2, 2), ("Grace", 1, 1)])
 
 
@@ -606,13 +676,19 @@ def _():
         "order_id", "l.sku", (F.col("l.qty") * F.col("l.price")).alias("line_total")
     )
     eq(lines.count(), 6)
-    total = lines.filter("order_id = 102").agg(F.round(F.sum("line_total"), 2).alias("t")).collect()[0]["t"]
+    total = (
+        lines.filter("order_id = 102")
+        .agg(F.round(F.sum("line_total"), 2).alias("t"))
+        .collect()[0]["t"]
+    )
     eq(total, 99.99)
 
 
 @check("explode_outer keeps empty/null arrays")
 def _():
-    eq(orders_df.select("order_id", F.explode_outer("lines")).count(), 8)  # 6 lines + 1 empty + 1 null
+    eq(
+        orders_df.select("order_id", F.explode_outer("lines")).count(), 8
+    )  # 6 lines + 1 empty + 1 null
 
 
 @check("map and array functions")
@@ -633,7 +709,8 @@ def _():
 def _():
     js = customers_df.select("cust_id", F.to_json(F.struct("name", "address")).alias("j"))
     parsed = js.select(
-        "cust_id", F.from_json("j", "name STRING, address STRUCT<city: STRING, country: STRING>").alias("p")
+        "cust_id",
+        F.from_json("j", "name STRING, address STRUCT<city: STRING, country: STRING>").alias("p"),
     )
     eq(rows(parsed.filter("cust_id = 3"), "p.name", "p.address.country"), [("Grace", "US")])
 
@@ -652,7 +729,10 @@ def _():
         )
         .collect()[0]
     )
-    eq((r["d"], r["y"], r["dow"], r["plus30"], r["diff"]), (date(2025, 2, 10), 2025, 2, date(2025, 3, 12), 19))
+    eq(
+        (r["d"], r["y"], r["dow"], r["plus30"], r["diff"]),
+        (date(2025, 2, 10), 2025, 2, date(2025, 3, 12), 19),
+    )
     eq(r["m"], datetime(2025, 2, 1))
 
 
@@ -710,7 +790,9 @@ def _():
 
 @check("anti / semi / left joins with broadcast hint")
 def _():
-    anti = orders_df.join(F.broadcast(customers_df), orders_df.customer_id == customers_df.cust_id, "left_anti")
+    anti = orders_df.join(
+        F.broadcast(customers_df), orders_df.customer_id == customers_df.cust_id, "left_anti"
+    )
     eq(rows(anti, "order_id"), [(106,)])
     semi = customers_df.join(orders_df, customers_df.cust_id == orders_df.customer_id, "left_semi")
     eq(rows(semi, "cust_id"), [(1,), (2,), (3,), (5,)])
@@ -784,8 +866,10 @@ def _():
 
         return pd.DataFrame({"customer_id": [pdf["customer_id"].iloc[0]], "n": [len(pdf)]})
 
-    out = orders_df.select("customer_id", "order_id").groupBy("customer_id").applyInPandas(
-        summarise, "customer_id long, n long"
+    out = (
+        orders_df.select("customer_id", "order_id")
+        .groupBy("customer_id")
+        .applyInPandas(summarise, "customer_id long, n long")
     )
     eq(rows(out), [(1, 2), (2, 1), (3, 2), (5, 1), (9, 1)])
 
@@ -800,7 +884,11 @@ def _():
 
 @check("spark.range + selectExpr: sum + percentile_approx")
 def _():
-    r = spark.range(1, 101).selectExpr("sum(id) AS s", "percentile_approx(id, 0.5) AS med").collect()[0]
+    r = (
+        spark.range(1, 101)
+        .selectExpr("sum(id) AS s", "percentile_approx(id, 0.5) AS med")
+        .collect()[0]
+    )
     eq(r["s"], 5050)
     # Spark returns an actual input value (bigint 50); Sail 0.7.3 interpolates (50.375).
     eq(r["med"], 50, "percentile_approx median")
@@ -844,9 +932,9 @@ if WITH_ICEBERG:
 
     @check("Iceberg: INSERT via writeTo().append()")
     def _():
-        flat_orders.toDF().select("order_id", "customer_id", "amount", "status", "order_month").writeTo(
-            ICE_TBL
-        ).append()
+        flat_orders.toDF().select(
+            "order_id", "customer_id", "amount", "status", "order_month"
+        ).writeTo(ICE_TBL).append()
         eq(spark.table(ICE_TBL).count(), 7)
 
     @check("Iceberg: MERGE INTO (update + insert)")
@@ -869,7 +957,9 @@ if WITH_ICEBERG:
     @check("Iceberg: INSERT INTO ... SELECT + aggregate read")
     def _():
         spark.sql(f"INSERT INTO {ICE_TBL} VALUES (109, 1, 1.5, 'PAID', '2025-03')")
-        r = spark.sql(f"SELECT count(*) AS n, round(sum(amount), 2) AS s FROM {ICE_TBL} WHERE status = 'PAID'").collect()[0]
+        r = spark.sql(
+            f"SELECT count(*) AS n, round(sum(amount), 2) AS s FROM {ICE_TBL} WHERE status = 'PAID'"
+        ).collect()[0]
         eq((r["n"], r["s"]), (8, round(10.5 + 99.99 + 250.0 + 1.0 + 42.42 + 77.0 + 8.0 + 1.5, 2)))
 
     @check("Iceberg: DELETE FROM", tier="SMOKE")
@@ -897,7 +987,10 @@ for tier, name, status, detail in RESULTS:
 failed = [r for r in RESULTS if r[2] == "FAIL" and r[0] == "EXACT"]
 smoke_failed = [r for r in RESULTS if r[2] == "FAIL" and r[0] == "SMOKE"]
 passed = sum(1 for r in RESULTS if r[2] == "PASS")
-print(f"\n{passed}/{len(RESULTS)} passed; EXACT failures: {len(failed)}; SMOKE failures: {len(smoke_failed)}")
+print(
+    f"\n{passed}/{len(RESULTS)} passed; "
+    f"EXACT failures: {len(failed)}; SMOKE failures: {len(smoke_failed)}"
+)
 logger.info(f"selftest finished: {passed}/{len(RESULTS)} passed")
 
 if failed or smoke_failed:

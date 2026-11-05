@@ -42,7 +42,11 @@ def rows(df, *cols):
 
 
 def test_read_json_from_mapped_s3_path(glue_context, s3_root):
-    put(s3_root, "raw/orders/part-1.json", "\n".join(json.dumps({"id": i, "item": f"x{i}"}) for i in (1, 2)))
+    put(
+        s3_root,
+        "raw/orders/part-1.json",
+        "\n".join(json.dumps({"id": i, "item": f"x{i}"}) for i in (1, 2)),
+    )
 
     dyf = glue_context.create_dynamic_frame.from_options(
         connection_type="s3",
@@ -114,7 +118,9 @@ def test_orc_read_raises_unsupported(glue_context):
 
 def test_non_s3_connection_raises_unsupported(glue_context):
     with pytest.raises(GlueLocalUnsupported, match="jdbc"):
-        glue_context.create_dynamic_frame.from_options(connection_type="jdbc", connection_options={})
+        glue_context.create_dynamic_frame.from_options(
+            connection_type="jdbc", connection_options={}
+        )
 
 
 def test_flat_spelling_reads_too(glue_context, s3_root):

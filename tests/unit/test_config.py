@@ -1,7 +1,5 @@
 """prytt.config: sources, precedence and defaults."""
 
-from pathlib import Path
-
 import pytest
 
 from prytt import config
@@ -181,7 +179,9 @@ def test_enum_values_are_checked_when_config_loads(tmp_path, env, key):
 
 
 def test_enum_values_are_accepted_from_files(tmp_path):
-    (tmp_path / "prytt.toml").write_text('[s3]\nmode = "passthrough"\n[catalog]\non_missing = "empty"\n')
+    (tmp_path / "prytt.toml").write_text(
+        '[s3]\nmode = "passthrough"\n[catalog]\non_missing = "empty"\n'
+    )
 
     cfg = config.load(env={}, cwd=tmp_path)
 
@@ -200,7 +200,9 @@ JOB_NAME = "from-pyproject"
 source_path = "s3://raw/in/"
 """
     )
-    (tmp_path / "prytt.toml").write_text('[args]\nsource_path = "s3://raw/other/"\nwith_iceberg = true\n')
+    (tmp_path / "prytt.toml").write_text(
+        '[args]\nsource_path = "s3://raw/other/"\nwith_iceberg = true\n'
+    )
     env = {"PRYTT_ARG_JOB_NAME": "from-env"}
 
     cfg = config.load(env=env, cwd=tmp_path)

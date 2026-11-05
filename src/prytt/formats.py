@@ -29,7 +29,17 @@ _RENAME = {
     "multiline": "multiLine",
 }
 # Spark option names that are fine as given (no log).
-_SPARK_NAMES = {"header", "sep", "quote", "escape", "multiLine", "inferSchema", "delimiter", "encoding", "schema"}
+_SPARK_NAMES = {
+    "header",
+    "sep",
+    "quote",
+    "escape",
+    "multiLine",
+    "inferSchema",
+    "delimiter",
+    "encoding",
+    "schema",
+}
 _GLUE_ONLY = {
     "useglueparquetwriter",
     "blocksize",
@@ -50,7 +60,9 @@ def spark_format(name) -> str:
     fmt = _ALIASES.get(fmt, fmt)
     if fmt == "orc":
         log("WARN", "format 'orc' requested; Sail has no ORC data source")
-        raise GlueLocalUnsupported("ORC is not supported locally: Sail has no ORC data source. Use parquet.")
+        raise GlueLocalUnsupported(
+            "ORC is not supported locally: Sail has no ORC data source. Use parquet."
+        )
     if fmt not in _KNOWN:
         log("WARN", f"format {name!r} is not one prytt knows; handing it to Sail as-is")
     return fmt

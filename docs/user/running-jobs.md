@@ -286,9 +286,13 @@ unchanged. These work against `glue_catalog.<db>.<tbl>`:
 
 ```python
 spark.sql("CREATE DATABASE IF NOT EXISTS glue_catalog.sales")
-spark.sql("CREATE TABLE IF NOT EXISTS glue_catalog.sales.orders (id bigint, amount double) USING iceberg")
-spark.sql("MERGE INTO glue_catalog.sales.orders t USING updates u ON t.id = u.id "
-          "WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *")
+spark.sql(
+    "CREATE TABLE IF NOT EXISTS glue_catalog.sales.orders (id bigint, amount double) USING iceberg"
+)
+spark.sql(
+    "MERGE INTO glue_catalog.sales.orders t USING updates u ON t.id = u.id "
+    "WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *"
+)
 ```
 
 The `--conf spark.sql.catalog.glue_catalog...` job parameters you set on

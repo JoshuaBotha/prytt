@@ -26,7 +26,12 @@ def run_script(cwd, code, extra_env=None):
         env.pop(name, None)
     env.update(extra_env or {})
     proc = subprocess.run(
-        [sys.executable, str(script)], capture_output=True, text=True, env=env, cwd=cwd, timeout=TIMEOUT
+        [sys.executable, str(script)],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=cwd,
+        timeout=TIMEOUT,
     )
     assert proc.returncode == 0, proc.stderr
     return proc
@@ -107,7 +112,13 @@ print(sorted(r.name for r in spark.sql("SHOW DATABASES IN glue_catalog").collect
 
 
 def test_pytest_spark_fixture_has_glue_catalog(pytester, monkeypatch):
-    for name in ("SPARK_REMOTE", "CI", "PRYTT_STRICT", "SAIL_CATALOG__LIST", "SAIL_CATALOG__DEFAULT_CATALOG"):
+    for name in (
+        "SPARK_REMOTE",
+        "CI",
+        "PRYTT_STRICT",
+        "SAIL_CATALOG__LIST",
+        "SAIL_CATALOG__DEFAULT_CATALOG",
+    ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("PRYTT_ICEBERG_WAREHOUSE", str(pytester.path / "wh"))
     pytester.makepyfile(

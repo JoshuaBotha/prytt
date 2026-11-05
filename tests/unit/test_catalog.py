@@ -20,7 +20,14 @@ def glue_context():
 @pytest.fixture(autouse=True)
 def project(monkeypatch, tmp_path):
     """cwd is a project dir with ``prytt.toml``; s3 maps under ``tmp/s3``."""
-    for name in ("CI", "PRYTT_STRICT", "PRYTT_LOG_LEVEL", "PRYTT_S3_MODE", "PRYTT_S3_ROOT", "PRYTT_CATALOG_ON_MISSING"):
+    for name in (
+        "CI",
+        "PRYTT_STRICT",
+        "PRYTT_LOG_LEVEL",
+        "PRYTT_S3_MODE",
+        "PRYTT_S3_ROOT",
+        "PRYTT_CATALOG_ON_MISSING",
+    ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(tmp_path)
     (tmp_path / "prytt.toml").write_text(
@@ -79,7 +86,9 @@ def test_write_to_mapped_table_then_read_back(glue_context, project):
 
 
 def test_missing_table_raises_with_the_toml_to_add(glue_context):
-    with pytest.raises(paths.CatalogTableNotFound, match=r'\[tool\.prytt\.catalog\."raw_db\.missing"\]'):
+    with pytest.raises(
+        paths.CatalogTableNotFound, match=r'\[tool\.prytt\.catalog\."raw_db\.missing"\]'
+    ):
         glue_context.create_dynamic_frame.from_catalog(database="raw_db", table_name="missing")
 
 
@@ -99,7 +108,9 @@ def test_missing_table_write_still_raises_when_on_missing_is_empty(glue_context,
     df = glue_context.spark_session.createDataFrame([(1,)], "id int")
 
     with pytest.raises(paths.CatalogTableNotFound):
-        glue_context.write_data_frame.from_catalog(frame=df, database="raw_db", table_name="missing")
+        glue_context.write_data_frame.from_catalog(
+            frame=df, database="raw_db", table_name="missing"
+        )
 
 
 def test_unknown_on_missing_value_is_rejected(glue_context, monkeypatch):

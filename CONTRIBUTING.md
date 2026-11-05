@@ -9,12 +9,14 @@ prytt uses [mise](https://mise.jdx.dev) for tools, tasks and env vars, so a
 task runs the same locally and in CI.
 
 ```bash
-mise run setup:dev   # installs Python 3.13 + uv, syncs deps, warms Sail
+mise run setup:dev   # installs Python 3.13 + uv, syncs deps, installs pre-commit hooks, warms Sail
 mise run test        # unit + acceptance tests
-mise run ci          # everything CI runs, in strict mode
+mise run ci          # everything CI runs (lint, tests, wheel check), in strict mode
 ```
 
-`mise tasks` lists every task. `SPARK_REMOTE` must be unset when tests run;
+`mise tasks` lists every task. The pre-commit hooks run `ruff check --fix` and
+`ruff format` on staged Python files; `mise run lint:fix` does the same for
+the whole tree. `SPARK_REMOTE` must be unset when tests run;
 mise unsets it for you, so run tests through `mise run` rather than bare
 `pytest`.
 
@@ -101,6 +103,8 @@ them readable for reviewers.
 
 - Match the style of the code around you: naming, comment density, idiom.
 - Comments explain why, not what.
+- `ruff` must pass: lint (`mise run lint`) and formatting, line length 100.
+  Prefer fixing over `# noqa`; when you do suppress, say why in a comment beside it.
 - Code under `_bootstrap` / `_hooks` runs at every interpreter start: stdlib
   only, with the import limits listed in `CLAUDE.md`.
 - When a Glue feature can't work locally, log it and pass data through

@@ -50,7 +50,10 @@ def _fill_from_config(values, options):
         for name in (option, dest):
             if name in local_args:
                 values[dest] = local_args[name]
-                log("INFO", f"--{option} not on the command line; using {values[dest]!r} from prytt config")
+                log(
+                    "INFO",
+                    f"--{option} not on the command line; using {values[dest]!r} from prytt config",
+                )
                 break
         else:
             missing.append(option)

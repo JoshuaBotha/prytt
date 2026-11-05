@@ -9,7 +9,13 @@ from prytt import config
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch, tmp_path):
-    for name in ("CI", "PRYTT_STRICT", "PRYTT_LOG_LEVEL", "PRYTT_ARG_JOB_NAME", "PRYTT_ARG_source_path"):
+    for name in (
+        "CI",
+        "PRYTT_STRICT",
+        "PRYTT_LOG_LEVEL",
+        "PRYTT_ARG_JOB_NAME",
+        "PRYTT_ARG_source_path",
+    ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(tmp_path)
     config.reset()
@@ -40,8 +46,10 @@ def test_equals_form_is_resolved():
 def test_extra_args_are_ignored_and_not_returned():
     argv = [
         "script.py",
-        "--JOB_NAME", "j",
-        "--job-bookmark-option", "job-bookmark-enable",
+        "--JOB_NAME",
+        "j",
+        "--job-bookmark-option",
+        "job-bookmark-enable",
         "--enable-metrics",
         "positional",
     ]
@@ -87,7 +95,9 @@ def test_option_falls_back_to_prytt_arg_env_var(monkeypatch, capsys):
 
 
 def test_option_falls_back_to_config_args(tmp_path):
-    (tmp_path / "prytt.toml").write_text('[args]\nJOB_NAME = "cfg-job"\nsource_path = "s3://b/in/"\n')
+    (tmp_path / "prytt.toml").write_text(
+        '[args]\nJOB_NAME = "cfg-job"\nsource_path = "s3://b/in/"\n'
+    )
     config.reset()
 
     assert getResolvedOptions(["script.py"], ["JOB_NAME", "source-path"]) == {
@@ -101,7 +111,9 @@ def test_command_line_beats_config_and_env(monkeypatch, tmp_path):
     monkeypatch.setenv("PRYTT_ARG_JOB_NAME", "env-job")
     config.reset()
 
-    assert getResolvedOptions(["script.py", "--JOB_NAME", "cli"], ["JOB_NAME"]) == {"JOB_NAME": "cli"}
+    assert getResolvedOptions(["script.py", "--JOB_NAME", "cli"], ["JOB_NAME"]) == {
+        "JOB_NAME": "cli"
+    }
 
 
 def test_config_args_satisfy_strict_mode(monkeypatch):

@@ -35,7 +35,9 @@ class EvaluateDataQuality(LogAny):
         )
         return frame
 
-    def process_rows(self, frame, ruleset=None, publishing_options=None, additional_options=None, **kwargs):
+    def process_rows(
+        self, frame, ruleset=None, publishing_options=None, additional_options=None, **kwargs
+    ):
         from awsglue.dynamicframe import DynamicFrameCollection
 
         name = _ruleset_name(ruleset, publishing_options)

@@ -76,7 +76,10 @@ def _version(dist: str) -> str:
 
 
 def _versions() -> str:
-    return f"prytt {_version('prytt')}, pysail {_version('pysail')}, pyspark-client {_version('pyspark-client')}"
+    return (
+        f"prytt {_version('prytt')}, pysail {_version('pysail')}, "
+        f"pyspark-client {_version('pyspark-client')}"
+    )
 
 
 def ensure_running() -> str:

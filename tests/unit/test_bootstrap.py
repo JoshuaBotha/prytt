@@ -39,7 +39,9 @@ def test_pth_file_is_installed_at_site_packages_root():
 
 
 def test_interpreter_start_installs_prytt_finder():
-    out = _run("-c", "import sys; print(any(type(f).__module__ == 'prytt._hooks' for f in sys.meta_path))")
+    out = _run(
+        "-c", "import sys; print(any(type(f).__module__ == 'prytt._hooks' for f in sys.meta_path))"
+    )
     assert out.stdout.strip() == "True"
 
 

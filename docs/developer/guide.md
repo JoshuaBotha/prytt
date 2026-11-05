@@ -12,7 +12,7 @@ each one cost a debugging session to learn.
 ```bash
 git clone https://github.com/JoshuaBotha/prytt.git
 cd prytt
-mise run setup:dev   # Python 3.13 + uv, uv sync, checks prytt.pth, warms Sail
+mise run setup:dev   # Python 3.13 + uv, uv sync, checks prytt.pth, pre-commit hooks, warms Sail
 mise run test        # unit + acceptance
 mise run ci          # everything CI runs, with CI=true (strict mode)
 ```
@@ -24,12 +24,13 @@ and prytt only starts its own Sail when it is unset.
 
 | Task | What |
 |---|---|
-| `setup:dev` | Fresh clone to ready (idempotent). |
+| `setup:dev` | Fresh clone to ready, installs the pre-commit hooks (idempotent). |
 | `test` | `test:unit` then `test:acceptance`. |
 | `test:unit` / `test:acceptance` | One suite; extra args go to pytest (`mise run test:unit -k catalog`). |
 | `build:dist` | Wheel and sdist into `dist/`. |
 | `build:check-wheel` | Install the wheel into a clean venv; check `prytt.pth` lands at the site-packages root and the packages import. |
-| `ci` | `CI=true`, unit, acceptance, wheel check. Done = this passes. |
+| `lint` / `lint:fix` | `ruff check` + `ruff format --check`; `:fix` applies both. |
+| `ci` | `CI=true`, lint, unit, acceptance, wheel check. Done = this passes. |
 | `release:publish` | CI only: tag and release the `pyproject.toml` version. |
 | `repo:settings` | Apply GitHub repo settings and the `main` ruleset (idempotent). |
 
@@ -105,8 +106,8 @@ module's spec.
 ### Session set-up callbacks (`prytt.server`)
 
 ```python
-server.on_before_start(fn)   # fn() just before Sail starts; not for external servers
-server.on_new_session(fn)    # fn(spark) once per new SparkSession, before the caller gets it
+server.on_before_start(fn)  # fn() just before Sail starts; not for external servers
+server.on_new_session(fn)  # fn(spark) once per new SparkSession, before the caller gets it
 ```
 
 Register both in `prytt.shims.pyspark_hooks.register_session_setup()`.

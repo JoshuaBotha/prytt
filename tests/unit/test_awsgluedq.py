@@ -82,7 +82,5 @@ def test_import_does_not_pull_in_pyspark():
     import sys
 
     code = "import sys, awsgluedq.transforms; print('pyspark' in sys.modules)"
-    out = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, check=True
-    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "False"

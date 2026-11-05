@@ -11,7 +11,14 @@ TIMEOUT = 300  # first Sail start after install can take ~30 s
 
 @pytest.fixture
 def run(pytester, monkeypatch):
-    for name in ("SPARK_REMOTE", "CI", "PRYTT_STRICT", "PRYTT_S3_ROOT", "PRYTT_LOG_LEVEL", "PRYTT_S3_MODE"):
+    for name in (
+        "SPARK_REMOTE",
+        "CI",
+        "PRYTT_STRICT",
+        "PRYTT_S3_ROOT",
+        "PRYTT_LOG_LEVEL",
+        "PRYTT_S3_MODE",
+    ):
         monkeypatch.delenv(name, raising=False)
 
     def run(source, *args):
@@ -29,7 +36,8 @@ def test_s3_root_is_a_tmp_dir_wired_into_s3_root_config(run):
         def test_root(s3_root, tmp_path):
             assert s3_root.is_dir()
             assert str(s3_root).startswith(str(tmp_path))
-            assert paths.map_path("s3://bucket/key.json") == (s3_root.resolve() / "bucket" / "key.json").as_posix()
+            expected = (s3_root.resolve() / "bucket" / "key.json").as_posix()
+            assert paths.map_path("s3://bucket/key.json") == expected
 
         def test_each_test_gets_its_own_root(s3_root):
             assert config.get().s3_root == str(s3_root)

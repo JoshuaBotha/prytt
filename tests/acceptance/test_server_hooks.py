@@ -27,7 +27,9 @@ def run(code: str, **env_overrides: str) -> subprocess.CompletedProcess:
 
 def ok(code: str, **env) -> subprocess.CompletedProcess:
     proc = run(code, **env)
-    assert proc.returncode == 0, f"exit {proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    assert proc.returncode == 0, (
+        f"exit {proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
     return proc
 
 
@@ -75,7 +77,9 @@ def test_rdd_methods_raise_glue_local_unsupported():
         from pyspark.context import SparkContext
         from prytt.stub import GlueLocalUnsupported
         sc = SparkContext()
-        for name in ("parallelize", "textFile", "wholeTextFiles", "emptyRDD", "broadcast", "accumulator"):
+        for name in (
+            "parallelize", "textFile", "wholeTextFiles", "emptyRDD", "broadcast", "accumulator"
+        ):
             try:
                 getattr(sc, name)([1])
             except GlueLocalUnsupported as exc:
@@ -106,7 +110,7 @@ def test_documented_no_ops_and_java_chains_log_and_continue_even_when_strict():
     assert "INFO SparkContext.addPyFile('deps.zip'), no-op locally" in out.stderr
     assert "INFO SparkContext.setCheckpointDir('/tmp/ckpt'), no-op locally" in out.stderr
     assert "STUB JavaSparkContext.hadoopConfiguration()" in out.stderr
-    app, master, version = out.stdout.split()
+    _app, _master, version = out.stdout.split()
     assert version.startswith("4.")
 
 

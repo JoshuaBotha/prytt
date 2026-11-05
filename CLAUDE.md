@@ -22,8 +22,8 @@ mise is the single entry point for tooling, tasks and env vars, so a task runs t
 - **Organise with folders**: `.mise/tasks/test/unit` is `mise run test:unit`; `test/_default` is plain `mise run test`.
 - **Workflows call tasks** (`mise run ci`), they don't inline logic. CI installs tools with `jdx/mise-action`. If a workflow step is more than a one-liner, make it a task.
 - **Env vars** go in `mise.toml` `[env]` (or `#MISE env=` on one task) when they apply to the project.
-- Fresh clone: `mise run setup:dev`. Everything CI runs, with `CI=true`: `mise run ci`.
-- Tasks: `setup:dev`, `test`, `test:unit`, `test:acceptance`, `build:dist`, `build:check-wheel`, `release:prepare <patch|minor|major>` (release branch + bump + relock + prytt version in `README.md`/`docs/user/` + push; skills `/release-patch|minor|major` first check the docs cover every feat/fix since the last tag, then add the PR), `release:publish` (CI-only: tags + releases the pyproject version on merge to `main` or manual dispatch), `repo:settings` (GitHub features, merge rules, `main` ruleset; idempotent), `ci`.
+- Fresh clone: `mise run setup:dev` (also installs the pre-commit hooks). Everything CI runs, with `CI=true`: `mise run ci`.
+- Tasks: `setup:dev`, `lint`, `lint:fix`, `test`, `test:unit`, `test:acceptance`, `build:dist`, `build:check-wheel`, `release:prepare <patch|minor|major>` (release branch + bump + relock + prytt version in `README.md`/`docs/user/` + push; skills `/release-patch|minor|major` first check the docs cover every feat/fix since the last tag, then add the PR), `release:publish` (CI-only: tags + releases the pyproject version on merge to `main` or manual dispatch), `repo:settings` (GitHub features, merge rules, `main` ruleset; idempotent), `ci`.
 
 ## Gotchas from the spikes (don't relearn these)
 
@@ -42,3 +42,4 @@ mise is the single entry point for tooling, tasks and env vars, so a task runs t
 - Local paths handed to Spark, SQL `LOCATION` literals or `MAP` logs go out as `Path.as_posix()` (`C:/...` on Windows; Sail accepts it). `str(path)` gives backslashes that `sqltext.literal` doubles and that tests comparing paths won't match. Tests build expected paths with `.as_posix()` too.
 - `mapInPandas` under pandas 3: `NULL` strings arrive as `NaN` (convert to `None`); worker exceptions arrive as empty `PythonException()` (re-raise with traceback).
 - pyspark-client `SparkSession.__del__` shuts down a process-wide thread pool; if the GC runs it inside that pool's `submit()` it self-deadlocks (0% CPU hang). prytt replaces `__del__` (`pyspark_hooks.on_connect_session`, test `tests/unit/test_session_gc.py`). Tests that `builder.create()` an extra session should still `stop()` it.
+- Pre-commit hooks run `uv run --frozen ruff`, the version in `uv.lock`: bump ruff with `uv lock --upgrade-package ruff`, not in `.pre-commit-config.yaml`.

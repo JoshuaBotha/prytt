@@ -45,7 +45,9 @@ def test_collected_session_closes_only_its_own_channel():
             [sys.executable, "-c", SCRIPT], capture_output=True, text=True, env=env, timeout=60
         )
     except subprocess.TimeoutExpired:
-        raise AssertionError("deadlocked: collected SparkSession.__del__ waited on the pool lock") from None
+        raise AssertionError(
+            "deadlocked: collected SparkSession.__del__ waited on the pool lock"
+        ) from None
 
     assert result.returncode == 0, result.stderr
     assert "live count 3" in result.stdout

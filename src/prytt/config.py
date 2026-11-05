@@ -86,7 +86,11 @@ _KEYS = {
     "sail.port": ("sail_port", "PRYTT_SAIL_PORT", int),
     "s3.mode": ("s3_mode", "PRYTT_S3_MODE", _one_of("s3.mode", S3_MODES)),
     "s3.root": ("s3_root", "PRYTT_S3_ROOT", str),
-    "catalog.on_missing": ("catalog_on_missing", "PRYTT_CATALOG_ON_MISSING", _one_of("catalog.on_missing", ON_MISSING)),
+    "catalog.on_missing": (
+        "catalog_on_missing",
+        "PRYTT_CATALOG_ON_MISSING",
+        _one_of("catalog.on_missing", ON_MISSING),
+    ),
     "iceberg.warehouse": ("iceberg_warehouse", "PRYTT_ICEBERG_WAREHOUSE", str),
 }
 
@@ -168,7 +172,7 @@ def load(env=None, cwd=None) -> Config:
         merged.update(source)
     for var, value in env.items():
         if var.startswith(_ARG_ENV_PREFIX) and len(var) > len(_ARG_ENV_PREFIX):
-            args[var[len(_ARG_ENV_PREFIX):]] = value
+            args[var[len(_ARG_ENV_PREFIX) :]] = value
 
     values = {"catalog": catalog, "args": args}
     for key, raw in merged.items():
@@ -176,7 +180,9 @@ def load(env=None, cwd=None) -> Config:
         values[name] = parse(raw)
     if "strict" not in values:
         values["strict"] = env.get("CI", "").strip().lower() in ("1", "true", "yes")
-    values["iceberg_warehouse"] = (cwd / values.get("iceberg_warehouse", ".prytt/warehouse")).resolve()
+    values["iceberg_warehouse"] = (
+        cwd / values.get("iceberg_warehouse", ".prytt/warehouse")
+    ).resolve()
     return Config(**values)
 
 
