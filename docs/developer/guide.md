@@ -52,6 +52,7 @@ src/prytt/
   sqltext.py                   ident/literal quoting; mask; table_refs
   iceberg.py                   SAIL_CATALOG env; per-session glue_catalog rebuild
   io.py                        read_df / write_df
+  s3lock.py                    S3 write lock: PryttS3WriteBlocked; check_write; writer wrappers
   formats.py                   Glue format names and options -> Spark
   stub.py                      log(); LogAny; stub_log; GlueLocalUnsupported
   pytest_plugin.py             spark / glue_context / s3_root fixtures

@@ -132,9 +132,10 @@ from `rowLevelOutcomes` fails with Spark's "cannot resolve" error.
 ## S3 and paths
 
 - Only `GlueContext` readers and writers and catalog `path`s are mapped.
-  `spark.read...load("s3://...")`, `df.write...save("s3://...")` and SQL
-  `LOCATION 's3://...'` are passed to Sail unchanged and fail in `local`
-  mode (Sail has no credentials or the bucket doesn't exist).
+  `spark.read...load("s3://...")` and SQL `LOCATION 's3://...'` are passed
+  to Sail unchanged and fail in `local` mode (Sail has no credentials or the
+  bucket doesn't exist). `df.write...save("s3://...")` is blocked by the
+  [S3 write lock](#s3-write-lock).
 - Writes append. Glue's sinks append too, but a local re-run sees the
   previous run's output; delete the target directory between runs.
 - There is no S3 consistency, listing or permission emulation. A path that
@@ -142,6 +143,24 @@ from `rowLevelOutcomes` fails with Spark's "cannot resolve" error.
   lazy), not at the `from_options` call.
 - `passthrough` mode is best-effort: tested only with anonymous public
   reads. A region is required.
+
+## S3 write lock
+
+prytt refuses writes to real S3 by raising `PryttS3WriteBlocked` (a
+`PermissionError`), in every `s3.mode` and even with strict mode off. Unlock
+with `PRYTT_ALLOW_S3_WRITES=1`; see
+[Configuration](configuration.md#s3-write-lock-prytt_allow_s3_writes).
+
+| Write | Blocked when |
+|---|---|
+| `df.write.save(path)` and the shortcuts `parquet`, `json`, `csv`, `text`, `xml`, `orc` (also `.option("path", ...)`) | `path` is `s3://`, `s3a://` or `s3n://`, in any mode. These paths are never mapped, so in `local` mode the error suggests a local path or a Glue writer. |
+| `write_dynamic_frame.from_options`, `write_dynamic_frame.from_catalog` (and `write_data_frame`) | The target is still `s3://` after mapping, that is `s3.mode = "passthrough"`. In `local` mode they write under `s3.root` and are never blocked. |
+| `iceberg.warehouse` | Set to an `s3://` URI: a config error when the session starts. |
+
+Not covered yet: `saveAsTable`, `insertInto`, `DataFrameWriterV2`
+(`writeTo(...)`) and SQL writes (`INSERT`, `CREATE TABLE ... AS SELECT`,
+`MERGE`, ...) to S3 locations. Never covered: `boto3`, the AWS CLI, and side
+effects inside `mapInPandas` or UDFs. Reads are never blocked.
 
 ## Catalog tables in SQL
 

@@ -143,6 +143,29 @@ def test_iceberg_warehouse_is_made_absolute_against_cwd(tmp_path):
     assert cfg.iceberg_warehouse.is_absolute()
 
 
+def test_iceberg_warehouse_on_s3_is_kept_as_a_uri(tmp_path):
+    cfg = config.load(env={"PRYTT_ICEBERG_WAREHOUSE": "s3://b/wh"}, cwd=tmp_path)
+
+    assert cfg.iceberg_warehouse == "s3://b/wh"
+
+
+@pytest.mark.parametrize(
+    ("file", "text"),
+    [
+        ("prytt.toml", "allow_s3_writes = true\n"),
+        ("prytt.toml", "[s3]\nallow_writes = true\n"),
+        ("prytt.toml", "PRYTT_ALLOW_S3_WRITES = 1\n"),
+        ("pyproject.toml", "[tool.prytt]\nallow_s3_writes = true\n"),
+        ("pyproject.toml", "[tool.prytt.s3]\nallow_writes = true\n"),
+    ],
+)
+def test_no_config_file_key_unlocks_s3_writes(tmp_path, file, text):
+    (tmp_path / file).write_text(text)
+
+    with pytest.raises(ValueError, match="unknown key"):
+        config.load(env={}, cwd=tmp_path)
+
+
 def test_get_loads_lazily_from_process_env_and_cwd_and_caches(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PRYTT_LOG_LEVEL", "debug")

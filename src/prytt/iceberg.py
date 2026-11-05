@@ -147,6 +147,10 @@ def _wrap_sql(spark, warehouse: Path) -> None:
 
 def setup_session(spark) -> None:
     warehouse = config.get().iceberg_warehouse
+    if isinstance(warehouse, str):  # an s3:// URI, allowed only with S3 writes unlocked
+        spark.conf.set("spark.sql.warehouse.dir", warehouse)
+        log("WARN", f"{CATALOG} warehouse {warehouse} is on S3: tables there are not re-registered")
+        return
     spark.conf.set("spark.sql.warehouse.dir", warehouse.as_posix())
 
     # Sail reads an unknown ``glue_catalog.x`` as a nested namespace, so ask.

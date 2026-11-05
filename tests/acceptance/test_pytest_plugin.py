@@ -101,3 +101,25 @@ def test_glue_context_reads_and_writes_s3_paths_under_s3_root(run):
     )
     result.assert_outcomes(passed=2)
     assert result.stderr.str().count("sail at") == 1
+
+
+def test_s3_write_lock_is_on_in_fixtures_even_if_the_shell_unlocks_it(run, monkeypatch):
+    monkeypatch.setenv("PRYTT_ALLOW_S3_WRITES", "1")
+    result = run(
+        """
+        import os
+
+        import pytest
+
+        from prytt import PryttS3WriteBlocked
+
+        def test_spark(spark):
+            assert "PRYTT_ALLOW_S3_WRITES" not in os.environ
+            with pytest.raises(PryttS3WriteBlocked):
+                spark.range(1).write.parquet("s3://b/k")
+
+        def test_s3_root_alone(s3_root):
+            assert "PRYTT_ALLOW_S3_WRITES" not in os.environ
+        """
+    )
+    result.assert_outcomes(passed=2)

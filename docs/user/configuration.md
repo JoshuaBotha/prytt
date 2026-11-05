@@ -77,13 +77,35 @@ ignore it).
 | `s3.root` | `PRYTT_S3_ROOT` | `./.prytt/s3` | Path, relative to the current directory unless absolute. |
 | `catalog.on_missing` | `PRYTT_CATALOG_ON_MISSING` | `error` | `error` or `empty`. Applies to `from_catalog` reads only. |
 | `catalog."db.table"` | | none | Table mapping; see below. |
-| `iceberg.warehouse` | `PRYTT_ICEBERG_WAREHOUSE` | `./.prytt/warehouse` | Path, made absolute against the current directory. |
+| `iceberg.warehouse` | `PRYTT_ICEBERG_WAREHOUSE` | `./.prytt/warehouse` | Path, made absolute against the current directory. An `s3://` URI is a config error unless `PRYTT_ALLOW_S3_WRITES` unlocks S3 writes. |
 | `args.<name>` | `PRYTT_ARG_<name>` | none | Job argument for `getResolvedOptions`; see [Job arguments](running-jobs.md#job-arguments). |
 
 Booleans accept `1`/`true`/`yes`/`on` and `0`/`false`/`no`/`off`/empty
 (case-insensitive), or TOML `true`/`false`.
 
 Unknown keys are an error, so a typo fails loudly rather than being ignored.
+
+## S3 write lock: `PRYTT_ALLOW_S3_WRITES`
+
+By default prytt refuses every write to real S3 it can detect, in every
+`s3.mode`, by raising `prytt.PryttS3WriteBlocked` (a `PermissionError`) that
+names the URI. It raises even with strict mode off. Writes prytt maps to local
+disk under `s3.root` and all reads are never blocked. See
+[Compatibility](compatibility.md#s3-write-lock) for what is covered so far.
+
+The only unlock is the environment variable `PRYTT_ALLOW_S3_WRITES` set to
+`1` or `true` (any case); any other value keeps the lock on. There is
+deliberately **no config-file key**, so committed config can never unlock
+writes for a team or CI. Set it for one command when you mean to write to
+S3:
+
+```bash
+PRYTT_ALLOW_S3_WRITES=1 python my_job.py
+```
+
+When writes are unlocked, prytt logs one `WARN` per Spark session. The
+pytest plugin's fixtures always run with the lock on, even if your shell sets
+`PRYTT_ALLOW_S3_WRITES`.
 
 ## Catalog table entries
 
@@ -143,6 +165,7 @@ option) are ignored with a `WARN`.
 | Variable | Read / set | Meaning |
 |---|---|---|
 | `PRYTT_*` | read | The settings above. |
+| `PRYTT_ALLOW_S3_WRITES` | read | `1`/`true` unlocks the [S3 write lock](#s3-write-lock-prytt_allow_s3_writes). Env only; no config key. Removed by the pytest plugin's fixtures. |
 | `CI` | read | Truthy (`1`/`true`/`yes`) turns on strict mode by default. |
 | `SPARK_REMOTE` | read, set | If set before Spark is first used, prytt connects there and starts no server. Otherwise prytt sets it to its own Sail server and clears it at exit. |
 | `RUST_LOG` | read, set | Sail's log filter. prytt sets `error` unless it is already set or `log_level` is `DEBUG`. |
