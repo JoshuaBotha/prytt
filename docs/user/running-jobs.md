@@ -180,13 +180,15 @@ a local path or use a Glue writer instead. See
 
 `s3.mode = "passthrough"` (`PRYTT_S3_MODE=passthrough`) leaves `s3://` URIs
 alone and lets Sail read real S3 through the standard AWS credential chain
-(environment, profile, web identity, ECS, IMDS). A region is required
-(`AWS_REGION`, `AWS_DEFAULT_REGION` or the profile's `region`), and prytt
-fails early with a `RuntimeError` if none is set.
+(environment, profile, web identity, ECS, IMDS). No region is needed: Sail
+discovers each bucket's region, and prytt logs one `INFO` line with the
+region it found or says Sail auto-discovers it. To pick an AWS profile (SSO,
+assume-role and so on), set `s3.profile` or `PRYTT_S3_PROFILE`; see
+[AWS profile](configuration.md#aws-profile-s3profile).
 
 **This mode is unverified.** Anonymous public reads
 (`AWS_SKIP_SIGNATURE=true`) were tested; SSO profiles and other credential
-setups were not. prytt logs a one-line `WARN` when passthrough is on.
+setups were not.
 Glue writers (`write_dynamic_frame.from_options` / `from_catalog`) raise
 `PryttS3WriteBlocked` in passthrough mode unless you set
 `PRYTT_ALLOW_S3_WRITES=1` for that run; see

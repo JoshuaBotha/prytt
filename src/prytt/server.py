@@ -2,7 +2,9 @@
 
 Interface:
 
-- ``ensure_running() -> str``: idempotent. Returns the Spark Connect URL. If
+- ``ensure_running() -> str``: idempotent. Returns the Spark Connect URL.
+  Every call (so every session start) first runs ``aws.prepare_session()``,
+  which exports ``s3.profile`` and may raise, before anything below. If
   ``SPARK_REMOTE`` is already set (and prytt did not set it), that server is
   used and Sail is not started. Otherwise starts Sail in-process on
   ``127.0.0.1:<sail.port>`` (0 = ephemeral), sets ``SPARK_REMOTE`` and
@@ -37,7 +39,7 @@ import atexit
 import os
 import threading
 
-from prytt import config
+from prytt import aws, config
 from prytt.stub import log
 
 _lock = threading.RLock()
@@ -88,6 +90,7 @@ def ensure_running() -> str:
 
     register_session_setup()  # whichever start path got here first (T10)
     with _lock:
+        aws.prepare_session()  # AWS_PROFILE must be in the env before Sail starts
         if _server is not None:
             return os.environ.setdefault("SPARK_REMOTE", _our_remote)
         remote = os.environ.get("SPARK_REMOTE")

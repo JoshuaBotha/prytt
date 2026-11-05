@@ -92,9 +92,18 @@ A config file has an unknown key, a bad boolean, or an `s3.mode` /
 `catalog.on_missing` value outside the allowed ones. The message names the
 key and the file. See the [configuration reference](configuration.md).
 
-### `RuntimeError: prytt s3.mode = 'passthrough' needs an AWS region`
+### `ValueError: prytt config: AWS_ACCESS_KEY_ID ... set in the environment with s3.profile`
 
-Set `AWS_REGION` (or `AWS_DEFAULT_REGION`, or `region` in your AWS profile).
+Your shell has static AWS keys and `s3.profile` is set while passthrough is
+in use. The AWS chain would use the keys and ignore the profile. Unset
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, or drop `s3.profile` (and
+`PRYTT_S3_PROFILE`). See [AWS profile](configuration.md#aws-profile-s3profile).
+
+### `RuntimeError: prytt: one AWS profile per process`
+
+The resolved `s3.profile` changed after the first session in this process
+(for example `PRYTT_S3_PROFILE` plus `config.reset()` in a test). Sail loads
+AWS config once per process, so run the other profile in a new process.
 
 ### Passthrough mode hangs for a second, then fails with a credentials error
 

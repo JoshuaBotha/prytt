@@ -264,3 +264,14 @@ def test_other_unknown_catalog_table_key_still_fails_at_load(tmp_path):
 
     with pytest.raises(ValueError, match=r"raw_db\.orders.*unknown key.*region"):
         config.load(env={}, cwd=tmp_path)
+
+
+def test_s3_profile_defaults_to_none(tmp_path):
+    assert config.load(env={}, cwd=tmp_path).s3_profile is None
+
+
+def test_s3_profile_is_read_from_the_file_and_env_overrides_it(tmp_path):
+    (tmp_path / "prytt.toml").write_text('[s3]\nprofile = "team-sso"\n')
+
+    assert config.load(env={}, cwd=tmp_path).s3_profile == "team-sso"
+    assert config.load(env={"PRYTT_S3_PROFILE": "other"}, cwd=tmp_path).s3_profile == "other"

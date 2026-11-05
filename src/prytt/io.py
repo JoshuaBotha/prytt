@@ -11,7 +11,7 @@ Interface:
   (a catalog table's effective mode; ``None``: the global ``s3.mode``), the format and
   options through ``prytt.formats``, and return
   ``spark.read.format(fmt).options(...).load(local)``. Config errors (ORC,
-  bad ``s3.mode``, passthrough without a region, no paths) raise before
+  bad ``s3.mode``, no paths) raise before
   ``spark`` is touched. The read itself is lazy (Spark Connect), so a missing
   path only fails when the frame is used.
 - ``write_df(df, uri, format, format_options=None, partition_keys=None, mode=None)``:

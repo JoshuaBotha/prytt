@@ -11,10 +11,9 @@ Interface:
   returned unchanged. ``for_write=True`` also creates the local directory.
   ``s3.root`` is read from ``config.get()`` on every call, so changing
   ``PRYTT_S3_ROOT`` + ``config.reset()`` redirects later calls (pytest plugin).
-  In passthrough mode URIs are left alone for Sail to read from S3:
-  the first call checks a region is set (``AWS_REGION``,
-  ``AWS_DEFAULT_REGION`` or the profile's ``region`` in the AWS config file)
-  and raises ``RuntimeError`` if not, and logs one best-effort ``WARN``.
+  In passthrough mode URIs are left alone for Sail to read from S3 (no
+  region needed: Sail discovers each bucket's; ``prytt.aws`` logs the region
+  at session start).
 - ``map_paths(uris, for_write=False, mode=None) -> list[str]``: ``map_path``
   over a list (or one string).
 - ``CatalogTable(path, format, options, mode=None)``: what a catalog lookup
@@ -49,7 +48,7 @@ Interface:
   yet" check). Tables Spark cannot read (no data yet) or the server won't
   register log ``WARN`` and are skipped (no table, no view); registered ones
   log one ``MAP`` line ending ``mode=<mode> (table|global)``. Config errors (ORC, bad
-  ``s3.mode``, passthrough without a region) raise. It also wraps
+  ``s3.mode``) raise. It also wraps
   ``spark.sql`` / ``spark.table``: mapped names in table positions
   (``sqltext.table_refs``) resolve case-insensitively, quoted or not, and
   Spark's not-found error for one unmapped ``db.table`` gets the
@@ -58,7 +57,6 @@ Interface:
 """
 
 import functools
-import os
 import re
 from pathlib import Path
 from typing import NamedTuple
@@ -68,7 +66,6 @@ from prytt.sqltext import ident, literal, parse_name, table_refs
 from prytt.stub import first_line, log
 
 _S3_SCHEMES = ("s3://", "s3a://", "s3n://")
-_passthrough_checked_for = None  # the Config passthrough was last checked under
 
 
 class CatalogTable(NamedTuple):
@@ -92,39 +89,6 @@ def is_passthrough(mode: str) -> bool:
     return mode == "passthrough"
 
 
-def _aws_profile_region(env) -> str | None:
-    import configparser
-
-    config_file = Path(env.get("AWS_CONFIG_FILE") or Path.home() / ".aws" / "config")
-    profile = env.get("AWS_PROFILE") or "default"
-    parser = configparser.ConfigParser()
-    try:
-        parser.read(config_file)
-    except configparser.Error:
-        return None
-    section = "default" if profile == "default" else f"profile {profile}"
-    return parser.get(section, "region", fallback=None)
-
-
-def _check_passthrough(cfg) -> None:
-    global _passthrough_checked_for
-    if _passthrough_checked_for is cfg:
-        return
-    env = os.environ
-    region = env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION") or _aws_profile_region(env)
-    if not region:
-        raise RuntimeError(
-            "prytt s3.mode = 'passthrough' needs an AWS region: set AWS_REGION "
-            "(or AWS_DEFAULT_REGION, or region in your AWS profile)"
-        )
-    log(
-        "WARN",
-        f"s3.mode = 'passthrough' (region {region}): Sail reads S3 directly; "
-        "best-effort, unverified",
-    )
-    _passthrough_checked_for = cfg
-
-
 def _s3_key(uri: str) -> str | None:
     for scheme in _S3_SCHEMES:
         if uri.startswith(scheme):
@@ -138,7 +102,6 @@ def map_path(uri: str, for_write: bool = False, mode: str | None = None) -> str:
         return uri
     cfg = config.get()
     if is_passthrough(cfg.s3_mode if mode is None else mode):
-        _check_passthrough(cfg)
         return uri
     local_path = Path(cfg.s3_root).resolve() / key
     # Forward slashes on every OS: Spark takes C:/... on Windows, and a
@@ -218,8 +181,8 @@ def register_mapped_tables(spark) -> None:
     A table whose data Spark cannot read yet (nothing written), or that the
     server will not register, is skipped with a ``WARN`` and gets neither
     name, so session creation never fails because of it. Config errors
-    (unsupported format such as ORC, bad ``s3.mode``, passthrough without a
-    region) are resolved before Spark is touched and raise. ``IF NOT EXISTS``
+    (unsupported format such as ORC, bad ``s3.mode``) are resolved before
+    Spark is touched and raise. ``IF NOT EXISTS``
     keeps registration safe on a persistent external catalog.
     """
     from pyspark.errors import PySparkException

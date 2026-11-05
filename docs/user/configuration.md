@@ -75,6 +75,7 @@ ignore it).
 | `sail.port` | `PRYTT_SAIL_PORT` | `0` | Integer. Port for prytt's Sail server on `127.0.0.1`; `0` picks a free one. |
 | `s3.mode` | `PRYTT_S3_MODE` | `local` | `local` (map to `s3.root`) or `passthrough` (read real S3; best-effort). A catalog table's own [`mode`](#catalog-table-entries) overrides it for that table. |
 | `s3.root` | `PRYTT_S3_ROOT` | `./.prytt/s3` | Path, relative to the current directory unless absolute. |
+| `s3.profile` | `PRYTT_S3_PROFILE` | none | AWS profile name Sail uses for S3, exported as `AWS_PROFILE`. An empty `PRYTT_S3_PROFILE` unsets a file value. See [AWS profile](#aws-profile-s3profile). |
 | `catalog.on_missing` | `PRYTT_CATALOG_ON_MISSING` | `error` | `error` or `empty`. Applies to `from_catalog` reads only. |
 | `catalog."db.table"` | | none | Table mapping; see below. |
 | `iceberg.warehouse` | `PRYTT_ICEBERG_WAREHOUSE` | `./.prytt/warehouse` | Path, made absolute against the current directory. An `s3://` URI is a config error unless `PRYTT_ALLOW_S3_WRITES` unlocks S3 writes. |
@@ -106,6 +107,40 @@ PRYTT_ALLOW_S3_WRITES=1 python my_job.py
 When writes are unlocked, prytt logs one `WARN` per Spark session. The
 pytest plugin's fixtures always run with the lock on, even if your shell sets
 `PRYTT_ALLOW_S3_WRITES`.
+
+## AWS profile: `s3.profile`
+
+```toml
+[tool.prytt.s3]
+profile = "my-sso-profile"   # or PRYTT_S3_PROFILE=my-sso-profile for one run
+```
+
+`s3.profile` picks the AWS profile Sail uses for S3. Any profile type in
+your AWS config works: SSO, assume-role, `credential_process`, or static
+keys in the credentials file. Sail uses the standard AWS credential chain
+and reads only `AWS_*` environment variables, so prytt passes the profile on
+by setting `AWS_PROFILE` in the process before Sail starts.
+
+- **Exported in every mode.** Whenever `s3.profile` is set, prytt sets
+  `AWS_PROFILE` and logs `INFO AWS_PROFILE=<profile> (s3.profile)`. If your
+  shell had a different `AWS_PROFILE`, prytt overrides it and logs a `WARN`
+  naming both. Without `s3.profile`, prytt leaves every `AWS_*` variable
+  alone.
+- **No static keys alongside it.** When passthrough is in use (`s3.mode` or
+  any catalog table's effective `mode` is `passthrough`), `s3.profile` is
+  set, and `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` is in the
+  environment, the session start raises `ValueError`: the AWS chain prefers
+  environment keys and would silently ignore the profile. Unset the keys or
+  drop `s3.profile`. Purely local runs don't check.
+- **No region needed.** Sail discovers each bucket's region. When
+  passthrough is in use, prytt logs one `INFO` line with the region it
+  found (`AWS_REGION`, `AWS_DEFAULT_REGION`, or the configured profile's
+  `region` in the AWS config file) or says Sail auto-discovers it.
+- **One AWS profile per process.** Sail loads AWS config once per process,
+  so prytt remembers the profile (or no profile) in effect at the first
+  session start. A later session start that resolves a different one (for
+  example after changing `PRYTT_S3_PROFILE` and calling `config.reset()` in
+  a test) raises `RuntimeError`. Run a different profile in a new process.
 
 ## Catalog table entries
 
@@ -202,7 +237,12 @@ option) are ignored with a `WARN`.
 | `SPARK_REMOTE` | read, set | If set before Spark is first used, prytt connects there and starts no server. Otherwise prytt sets it to its own Sail server and clears it at exit. |
 | `RUST_LOG` | read, set | Sail's log filter. prytt sets `error` unless it is already set or `log_level` is `DEBUG`. |
 | `SAIL_CATALOG__LIST`, `SAIL_CATALOG__DEFAULT_CATALOG` | read, set | Sail's catalogs. prytt declares `sail` (default) and `glue_catalog` unless already set. Not touched for an external server. |
-| `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_PROFILE`, `AWS_CONFIG_FILE` | read | Region check when `s3.mode` or a table's `mode` is `passthrough`. Credentials are read by Sail, not prytt. |
+| `AWS_PROFILE` | read, set | Set to `s3.profile` before Sail starts, when that is set (a different shell value is overridden with a `WARN`). Otherwise left alone. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | read | With `s3.profile` set and passthrough in use, either one is an error ([AWS profile](#aws-profile-s3profile)). |
+| `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_CONFIG_FILE` | read | Only for the region `INFO` line when passthrough is in use; no region is required. |
+
+prytt never reads credentials itself; Sail does, through the AWS credential
+chain, from the `AWS_*` variables in the process.
 
 Any other `SAIL_*` variable you set reaches Sail unchanged, because the
 server runs in the same process.

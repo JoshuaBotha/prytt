@@ -73,6 +73,7 @@ flowchart TB
         sqltext["sqltext<br/>SQL tokens, quoting"]
         iceberg["iceberg<br/>glue_catalog env + re-registration"]
         s3lock["s3lock<br/>S3 write lock"]
+        aws["aws<br/>AWS profile, session-start checks"]
         io["io / formats<br/>read_df, write_df, format options"]
         stub["stub<br/>log, LogAny, strict mode"]
         plugin["pytest_plugin<br/>fixtures"]
@@ -94,6 +95,8 @@ flowchart TB
     io --> s3lock
     server --> pysail
     server --> config
+    server --> aws
+    aws --> paths
     paths --> sqltext
     iceberg --> sqltext
     shims -->|register_session_setup| paths
@@ -115,6 +118,7 @@ flowchart TB
 | SQL text | `prytt.sqltext` | Quote identifiers and literals; mask comments and strings; find names in table positions. A heuristic tokenizer, not a parser. |
 | Iceberg | `prytt.iceberg` | Declare `glue_catalog` to Sail; per session set the warehouse dir and re-register databases and tables found on disk; add `LOCATION` to `CREATE DATABASE glue_catalog.<db>`. |
 | S3 write lock | `prytt.s3lock` | Refuse writes to real S3 (`PryttS3WriteBlocked`) unless `PRYTT_ALLOW_S3_WRITES` unlocks them: wrap `DataFrameWriter.save`, check Glue writers after path mapping, reject an `s3://` Iceberg warehouse; one `WARN` per session when unlocked. |
+| AWS profile | `prytt.aws` | At every session start, before Sail starts: export `s3.profile` as `AWS_PROFILE`, refuse static keys that would shadow it when passthrough is in use, log the region, hold one profile per process. |
 | I/O and formats | `prytt.io`, `prytt.formats` | Read/write DataFrames at mapped locations; translate Glue format names and options to Spark. |
 | Logging and strict mode | `prytt.stub` | `[prytt] TAG message` logging; `LogAny` catch-all base class; `GlueLocalUnsupported`. |
 | Glue API | `awsglue.*`, `awsgluedq.*` | The Glue classes and functions scripts import, implemented on Spark DataFrames or as logged stand-ins. |

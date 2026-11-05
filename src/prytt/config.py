@@ -9,6 +9,7 @@ Interface:
 
 ``Config`` is a frozen dataclass: ``disable``, ``log_level``, ``strict``,
 ``sail_port``, ``s3_mode``, ``s3_root`` (as configured, relative to cwd),
+``s3_profile`` (the AWS profile for Sail, ``None`` if unset; ``prytt.aws``),
 ``catalog_on_missing``, ``catalog`` (``{"db.table": {path, format, ...}}``),
 ``iceberg_warehouse`` (absolute ``Path``, or an ``s3://`` URI kept as a
 ``str``) and ``args`` (``{name: str}``, local job arguments for
@@ -43,6 +44,7 @@ class Config:
     sail_port: int = 0
     s3_mode: str = "local"
     s3_root: str = "./.prytt/s3"
+    s3_profile: str | None = None
     catalog_on_missing: str = "error"
     catalog: dict = field(default_factory=dict)
     iceberg_warehouse: Path | str = Path(".prytt/warehouse")
@@ -68,6 +70,11 @@ def _upper(value) -> str:
     return str(value).strip().upper()
 
 
+def _profile(value) -> str | None:
+    """An empty ``PRYTT_S3_PROFILE`` unsets a profile from the files."""
+    return str(value).strip() or None
+
+
 S3_MODES = ("local", "passthrough")
 ON_MISSING = ("error", "empty")
 CATALOG_ENTRY_KEYS = ("path", "format", "options", "mode")
@@ -91,6 +98,7 @@ _KEYS = {
     "sail.port": ("sail_port", "PRYTT_SAIL_PORT", int),
     "s3.mode": ("s3_mode", "PRYTT_S3_MODE", _one_of("s3.mode", S3_MODES)),
     "s3.root": ("s3_root", "PRYTT_S3_ROOT", str),
+    "s3.profile": ("s3_profile", "PRYTT_S3_PROFILE", _profile),
     "catalog.on_missing": (
         "catalog_on_missing",
         "PRYTT_CATALOG_ON_MISSING",

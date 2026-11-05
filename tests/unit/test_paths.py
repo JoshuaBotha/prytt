@@ -93,30 +93,14 @@ def passthrough(monkeypatch, tmp_path, **env):
     set_env(monkeypatch, PRYTT_S3_MODE="passthrough", **env)
 
 
-def test_passthrough_leaves_uris_alone_and_warns_once(monkeypatch, tmp_path, capsys):
-    passthrough(monkeypatch, tmp_path, AWS_REGION="eu-west-1")
+def test_passthrough_leaves_uris_alone_without_needing_a_region(monkeypatch, tmp_path, capsys):
+    passthrough(monkeypatch, tmp_path)
 
     assert paths.map_path("s3://b/k") == "s3://b/k"
     assert paths.map_path("s3a://b/k", for_write=True) == "s3a://b/k"
 
-    err = capsys.readouterr().err
-    assert err.count("WARN") == 1
-    assert "passthrough" in err and "best-effort" in err
+    assert capsys.readouterr().err == ""
     assert not (tmp_path / ".prytt").exists()
-
-
-def test_passthrough_without_region_fails_early(monkeypatch, tmp_path):
-    passthrough(monkeypatch, tmp_path)
-
-    with pytest.raises(RuntimeError, match="AWS_REGION"):
-        paths.map_path("s3://b/k")
-
-
-def test_passthrough_accepts_region_from_the_profile(monkeypatch, tmp_path):
-    (tmp_path / "aws-config").write_text("[profile dev]\nregion = af-south-1\n")
-    passthrough(monkeypatch, tmp_path, AWS_PROFILE="dev")
-
-    assert paths.map_path("s3://b/k") == "s3://b/k"
 
 
 def test_unknown_s3_mode_is_rejected(monkeypatch):
@@ -181,17 +165,10 @@ class _NoSpark:
             {"PRYTT_S3_MODE": "cloud"},
             ValueError,
         ),
-        (
-            '[catalog."db.t"]\npath = "s3://b/t/"\nformat = "json"\n',
-            {"PRYTT_S3_MODE": "passthrough", "AWS_CONFIG_FILE": "/nonexistent"},
-            RuntimeError,
-        ),
     ],
-    ids=["orc", "bad-s3-mode", "passthrough-without-region"],
+    ids=["orc", "bad-s3-mode"],
 )
 def test_temp_view_registration_raises_config_errors(monkeypatch, tmp_path, toml, env, error):
-    for name in ("AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE"):
-        monkeypatch.delenv(name, raising=False)
     (tmp_path / "prytt.toml").write_text(toml)
     set_env(monkeypatch, **env)
 

@@ -142,7 +142,8 @@ from `rowLevelOutcomes` fails with Spark's "cannot resolve" error.
   doesn't exist fails at the first action on the frame (Spark Connect is
   lazy), not at the `from_options` call.
 - `passthrough` mode is best-effort: tested only with anonymous public
-  reads. A region is required.
+  reads. No region is required (Sail discovers each bucket's), and the AWS
+  profile comes from `s3.profile`, one per process.
 
 ## S3 write lock
 
