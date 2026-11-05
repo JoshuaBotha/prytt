@@ -90,7 +90,7 @@ def passthrough(monkeypatch, tmp_path, **env):
     for name in ("AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("AWS_CONFIG_FILE", str(tmp_path / "aws-config"))
-    set_env(monkeypatch, PRYTT_S3_MODE="passthrough", **env)
+    set_env(monkeypatch, **{"PRYTT_S3_MODE": "passthrough", **env})
 
 
 def test_passthrough_leaves_uris_alone_without_needing_a_region(monkeypatch, tmp_path, capsys):

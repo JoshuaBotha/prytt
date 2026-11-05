@@ -237,7 +237,7 @@ source_path = "s3://raw/in/"
     }
 
 
-def write_table(tmp_path, extra):
+def write_orders_entry(tmp_path, extra):
     (tmp_path / "prytt.toml").write_text(
         f'[catalog."raw_db.orders"]\npath = "s3://raw/orders/"\nformat = "json"\n{extra}\n'
     )
@@ -245,7 +245,7 @@ def write_table(tmp_path, extra):
 
 @pytest.mark.parametrize("mode", ["local", "passthrough"])
 def test_catalog_table_accepts_a_mode(tmp_path, mode):
-    write_table(tmp_path, f'mode = "{mode}"')
+    write_orders_entry(tmp_path, f'mode = "{mode}"')
 
     cfg = config.load(env={}, cwd=tmp_path)
 
@@ -253,14 +253,14 @@ def test_catalog_table_accepts_a_mode(tmp_path, mode):
 
 
 def test_bad_catalog_table_mode_fails_at_load_naming_the_allowed_values(tmp_path):
-    write_table(tmp_path, 'mode = "passthru"')
+    write_orders_entry(tmp_path, 'mode = "passthru"')
 
     with pytest.raises(ValueError, match=r"raw_db\.orders.*mode.*'local', 'passthrough'.*passthru"):
         config.load(env={}, cwd=tmp_path)
 
 
 def test_other_unknown_catalog_table_key_still_fails_at_load(tmp_path):
-    write_table(tmp_path, 'mode = "local"\nregion = "eu-west-1"')
+    write_orders_entry(tmp_path, 'mode = "local"\nregion = "eu-west-1"')
 
     with pytest.raises(ValueError, match=r"raw_db\.orders.*unknown key.*region"):
         config.load(env={}, cwd=tmp_path)
@@ -275,3 +275,39 @@ def test_s3_profile_is_read_from_the_file_and_env_overrides_it(tmp_path):
 
     assert config.load(env={}, cwd=tmp_path).s3_profile == "team-sso"
     assert config.load(env={"PRYTT_S3_PROFILE": "other"}, cwd=tmp_path).s3_profile == "other"
+
+
+@pytest.mark.parametrize("mode", ["local", "passthrough"])
+def test_catalog_table_mode_in_pyproject_form(tmp_path, mode):
+    (tmp_path / "pyproject.toml").write_text(
+        f'[tool.prytt.catalog."raw_db.orders"]\npath = "s3://raw/orders/"\nformat = "json"\n'
+        f'mode = "{mode}"\n'
+    )
+
+    cfg = config.load(env={}, cwd=tmp_path)
+
+    assert cfg.catalog["raw_db.orders"]["mode"] == mode
+
+
+def test_bad_catalog_table_mode_in_pyproject_fails_at_load(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.prytt.catalog."raw_db.orders"]\npath = "s3://raw/orders/"\nformat = "json"\n'
+        'mode = "passthru"\n'
+    )
+
+    with pytest.raises(ValueError, match=r"raw_db\.orders.*mode.*passthru"):
+        config.load(env={}, cwd=tmp_path)
+
+
+def test_catalog_table_mode_has_no_env_override(tmp_path):
+    write_orders_entry(tmp_path, 'mode = "local"')
+    env = {
+        "PRYTT_S3_MODE": "passthrough",
+        "PRYTT_CATALOG_RAW_DB_ORDERS_MODE": "passthrough",
+        "PRYTT_CATALOG_MODE": "passthrough",
+    }
+
+    cfg = config.load(env=env, cwd=tmp_path)
+
+    assert cfg.s3_mode == "passthrough"
+    assert cfg.catalog["raw_db.orders"]["mode"] == "local"
