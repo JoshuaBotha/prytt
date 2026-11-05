@@ -13,3 +13,6 @@ dist/
 docs/agents/
 .scratch/
 CLAUDE.local.md
+
+# Personal mise overrides (profiles, test bucket URIs)
+mise.local.toml

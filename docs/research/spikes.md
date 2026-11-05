@@ -11,7 +11,7 @@ Clean venv (not the project `.venv`). Each script ran standalone with `SPARK_REM
 | S2 | pysail 0.7.3 + pyspark-client 4.1.4 work (`spark.version` = 4.1.4). parquet/json/csv read+write+`partitionBy` ok. **ORC not supported** ("No data source found for: orc"). | Keep `pyspark-client>=4.1,<4.2`. Pin `pysail>=0.7.3`. `orc` → log WARN and raise unsupported. |
 | S3 | In-process works. | **In-process**, no subprocess fallback needed. |
 | S4 | `.pth` + meta path finder intercepts every import order tried. Startup cost < 1 ms once `.pyc` exists. | Ship as designed. Do **not** import `importlib.abc` / `importlib.util` in the hook. |
-| S5 | Sail reads `s3://` directly (AWS Rust SDK credential chain). Anonymous public read works. SSO profile **not tested — skipped by decision (2026-11-01)**. | Passthrough mode ships as best-effort, unverified for SSO profiles. |
+| S5 | Sail reads `s3://` directly (AWS Rust SDK credential chain). Anonymous public read works. SSO profile **not tested — skipped by decision (2026-11-01)**. | Passthrough mode ships as best-effort, unverified for SSO profiles. **Superseded (2026-11-05):** an SSO-profile passthrough read passed `mise run test:s3-live`. |
 | S6 | Scalar UDF, `pandas_udf`, `mapInPandas`, `mapInArrow`, `applyInPandas` all work. | DynamicFrame `filter`/`map` v2 via `mapInPandas` is viable. Two caveats below. |
 | S7 | Delta **and** Iceberg: write, append, read, `CREATE TABLE ... LOCATION`, `INSERT`, `MERGE INTO`, CTAS, `saveAsTable`, `writeTo().append()`. A `glue_catalog` catalog can be declared via `SAIL_CATALOG__LIST`. | **Positive → T10 in scope.** Details below. |
 | S-SQL1 (future spec) | `CREATE DATABASE raw_db` + `CREATE TABLE raw_db.orders USING json LOCATION ...` works; `spark.sql` and `spark.table` resolve `raw_db.orders`. | Approach 1 (real DBs + external tables) works; see `docs/adr/0003-mapped-tables-as-sail-external-tables.md`. |
@@ -64,7 +64,7 @@ Startup cost (`python -X importtime -c pass`):
   - no creds, no region: fails. Error lists the chain tried: Environment, Profile, WebIdentityToken, EcsContainer, Ec2InstanceMetadata (IMDS 1 s connect timeout).
   - `AWS_REGION=us-west-2 AWS_SKIP_SIGNATURE=true`: **works** (77 s, because that file is large).
 - So Sail uses the standard AWS Rust SDK chain, which includes a Profile provider (the Rust SDK supports SSO profiles).
-- **Skipped (decision 2026-11-01): `AWS_PROFILE=<sso profile>`.** Not run; passthrough is best-effort. If it ever matters, run:
+- **Skipped (decision 2026-11-01): `AWS_PROFILE=<sso profile>`.** Not run; passthrough is best-effort. **Superseded (2026-11-05):** covered by `mise run test:s3-live`, which passed with an SSO profile. The original spike, for reference:
   ```bash
   git show 6d9ad0e:spikes/s5_s3.py > s5_s3.py
   aws sso login --profile sso-admin

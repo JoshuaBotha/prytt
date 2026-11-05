@@ -34,9 +34,9 @@ Terms, from the [glossary](../../GLOSSARY.md#language):
   `s3n://`) to `<s3.root>/bucket/key` on your disk, `./.prytt/s3` by default.
   Nothing prytt maps touches AWS.
 - **`passthrough`**: prytt leaves the URI alone and Sail reads it from real
-  S3 with the AWS credential chain. Passthrough is **best-effort**: only
-  anonymous public reads have been verified; other credential setups,
-  SSO included, have not been run against real AWS yet.
+  S3 with the AWS credential chain. Reads are verified against real AWS with an SSO profile (`s3.profile`): `mise run test:s3-live` read a partitioned Parquet passthrough table through `spark.sql`, with partition columns discovered.
+  Other credential types (assume-role, `credential_process`, static keys)
+  and Delta or Iceberg tables on S3 have not been run against real AWS.
 
 What each kind of call does in each mode:
 
