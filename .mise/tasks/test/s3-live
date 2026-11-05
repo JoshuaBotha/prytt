@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Optional manual check against real AWS: read a passthrough table at PRYTT_TEST_S3_URI, check the write lock (skips if unset; never in CI)"
+set -euo pipefail
+# Own pytest process: tests/unit and tests/acceptance set fake AWS env and Sail
+# loads AWS config once per process. PRYTT_S3_PROFILE / AWS_* pass through from
+# the shell; the write lock stays on.
+unset PRYTT_ALLOW_S3_WRITES
+uv run pytest tests/live -m s3_live -rs "$@"
