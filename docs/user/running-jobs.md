@@ -193,6 +193,11 @@ Glue writers (`write_dynamic_frame.from_options` / `from_catalog`) raise
 [Configuration](configuration.md#s3-write-lock-prytt_allow_s3_writes).
 Without credentials, Sail waits about 1 s on IMDS and then fails.
 
+To read just one or two catalog tables from real S3 and keep everything else
+local, leave `s3.mode = "local"` and set `mode = "passthrough"` on those
+tables (or the reverse: `mode = "local"` on a table under global
+passthrough). See [Catalog table entries](configuration.md#catalog-table-entries).
+
 ## Catalog tables
 
 Jobs that read `create_dynamic_frame.from_catalog(database=..., table_name=...)`
@@ -266,14 +271,18 @@ Every mapped table is also a **temp view** named `db_table` (for example
 View names are case-sensitive.
 
 Tables and views are registered when the session is created, and the log
-shows one line per table:
+shows one line per table, ending with the table's S3 mode and whether it
+came from the table's own `mode` or the global `s3.mode`:
 
 ```
-[prytt] MAP  raw_db.orders -> /home/me/proj/.prytt/s3/raw-bucket/orders/ (table raw_db.orders, view raw_db_orders)
+[prytt] MAP  raw_db.orders -> /home/me/proj/.prytt/s3/raw-bucket/orders/ (table raw_db.orders, view raw_db_orders, mode=local (global))
+[prytt] MAP  ref_db.prices -> s3://gold-bucket/prices/ (table ref_db.prices, view ref_db_prices, mode=passthrough (table))
 ```
 
-A table that has no data yet is skipped with a `WARN`, so neither name
-resolves for it in that session, even after the job writes it.
+A local table that has no data yet is skipped with a `WARN`, so neither name
+resolves for it in that session, even after the job writes it. A
+passthrough table is not checked for local data; if Sail can't read it, it
+is skipped with a `WARN` naming its location.
 
 Querying an unmapped `db.table` with `spark.sql` / `spark.table` fails at
 that call with Spark's "table or view not found" error, and the traceback

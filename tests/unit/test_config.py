@@ -235,3 +235,32 @@ source_path = "s3://raw/in/"
         "source_path": "s3://raw/other/",
         "with_iceberg": "true",
     }
+
+
+def write_table(tmp_path, extra):
+    (tmp_path / "prytt.toml").write_text(
+        f'[catalog."raw_db.orders"]\npath = "s3://raw/orders/"\nformat = "json"\n{extra}\n'
+    )
+
+
+@pytest.mark.parametrize("mode", ["local", "passthrough"])
+def test_catalog_table_accepts_a_mode(tmp_path, mode):
+    write_table(tmp_path, f'mode = "{mode}"')
+
+    cfg = config.load(env={}, cwd=tmp_path)
+
+    assert cfg.catalog["raw_db.orders"]["mode"] == mode
+
+
+def test_bad_catalog_table_mode_fails_at_load_naming_the_allowed_values(tmp_path):
+    write_table(tmp_path, 'mode = "passthru"')
+
+    with pytest.raises(ValueError, match=r"raw_db\.orders.*mode.*'local', 'passthrough'.*passthru"):
+        config.load(env={}, cwd=tmp_path)
+
+
+def test_other_unknown_catalog_table_key_still_fails_at_load(tmp_path):
+    write_table(tmp_path, 'mode = "local"\nregion = "eu-west-1"')
+
+    with pytest.raises(ValueError, match=r"raw_db\.orders.*unknown key.*region"):
+        config.load(env={}, cwd=tmp_path)

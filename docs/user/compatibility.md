@@ -154,7 +154,7 @@ with `PRYTT_ALLOW_S3_WRITES=1`; see
 | Write | Blocked when |
 |---|---|
 | `df.write.save(path)` and the shortcuts `parquet`, `json`, `csv`, `text`, `xml`, `orc` (also `.option("path", ...)`) | `path` is `s3://`, `s3a://` or `s3n://`, in any mode. These paths are never mapped, so in `local` mode the error suggests a local path or a Glue writer. |
-| `write_dynamic_frame.from_options`, `write_dynamic_frame.from_catalog` (and `write_data_frame`) | The target is still `s3://` after mapping, that is `s3.mode = "passthrough"`. In `local` mode they write under `s3.root` and are never blocked. |
+| `write_dynamic_frame.from_options`, `write_dynamic_frame.from_catalog` (and `write_data_frame`) | The target is still `s3://` after mapping: `from_options` in `s3.mode = "passthrough"`, `from_catalog` to a passthrough table (its own `mode`, else `s3.mode`; so a table with `mode = "passthrough"` is blocked even in `local` mode). Writes mapped under `s3.root` are never blocked. |
 | `iceberg.warehouse` | Set to an `s3://` URI: a config error when the session starts. |
 
 Not covered yet: `saveAsTable`, `insertInto`, `DataFrameWriterV2`
@@ -198,8 +198,9 @@ effects inside `mapInPandas` or UDFs. Reads are never blocked.
 - **External server.** With `SPARK_REMOTE` set, tables are registered with
   `IF NOT EXISTS`, so a persistent catalog keeps the old location if you
   change a table's `path` (untested).
-- In passthrough mode, an `s3://` table with no data registers as an empty
-  table with no columns (unverified against real S3).
+- A passthrough table (`s3.mode = "passthrough"` or the table's own
+  `mode = "passthrough"`) with no data at its `s3://` location registers as
+  an empty table with no columns (unverified against real S3).
 
 ## Iceberg
 

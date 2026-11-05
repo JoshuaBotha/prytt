@@ -2,38 +2,53 @@
 
 Interface:
 
-- ``map_path(uri, for_write=False) -> str``: map one URI. ``s3://``,
+- ``map_path(uri, for_write=False, mode=None) -> str``: map one URI in
+  ``mode`` (``"local"`` | ``"passthrough"``): catalog-table callers pass the
+  table's effective mode (``table_mode``), everyone else leaves ``None`` for
+  the global ``s3.mode``. ``s3://``,
   ``s3a://`` and ``s3n://`` become ``<s3.root>/bucket/key`` (absolute; a
   trailing ``/`` is kept) and each rewrite logs ``MAP``. Anything else is
   returned unchanged. ``for_write=True`` also creates the local directory.
   ``s3.root`` is read from ``config.get()`` on every call, so changing
   ``PRYTT_S3_ROOT`` + ``config.reset()`` redirects later calls (pytest plugin).
-  In ``s3.mode = "passthrough"`` URIs are left alone for Sail to read from S3:
+  In passthrough mode URIs are left alone for Sail to read from S3:
   the first call checks a region is set (``AWS_REGION``,
   ``AWS_DEFAULT_REGION`` or the profile's ``region`` in the AWS config file)
   and raises ``RuntimeError`` if not, and logs one best-effort ``WARN``.
-- ``map_paths(uris) -> list[str]``: ``map_path`` over a list (or one string).
-- ``CatalogTable(path, format, options)``: what a catalog lookup returns.
-  ``path`` is the configured (unmapped) location; callers run it through
-  ``map_path``. ``options`` are Spark/Glue format options.
+- ``map_paths(uris, for_write=False, mode=None) -> list[str]``: ``map_path``
+  over a list (or one string).
+- ``CatalogTable(path, format, options, mode=None)``: what a catalog lookup
+  returns. ``path`` is the configured (unmapped) location; callers run it
+  through ``map_path`` with the table's effective mode. ``options`` are
+  Spark/Glue format options. ``mode`` is the table's own ``mode`` (``None``
+  if not set; config rejects other values when it loads).
+- ``table_mode(table) -> (mode, source)``: the table's effective mode and
+  where it came from, ``"table"`` (its ``mode``) or ``"global"`` (``s3.mode``,
+  from any source, ``PRYTT_S3_MODE`` included).
+- ``is_passthrough(mode) -> bool``: whether a table with that effective mode
+  is a passthrough table (reads and writes its real ``s3://`` location; the
+  S3 write lock blocks writes to it). Otherwise it is a local table.
 - ``resolve_table(database, table_name) -> CatalogTable``: look up
   ``catalog."database.table"`` in config (exact key first, then
   case-insensitive). Unmapped tables raise ``CatalogTableNotFound`` (a
   ``LookupError``) whose message is the exact TOML to add. A bad entry (no
-  ``path`` / ``format``, unknown keys, non-table ``options``) raises
-  ``ValueError``. ``resolve_table`` never applies ``catalog.on_missing``:
-  readers check ``catalog_on_missing()`` (``"error"`` | ``"empty"``; config
-  rejects anything else when it loads) and turn the miss into an empty frame; writers
-  always raise.
+  ``path`` / ``format``, non-table ``options``) raises ``ValueError``
+  (unknown keys and a bad ``mode`` already fail when the config loads).
+  ``resolve_table`` never applies ``catalog.on_missing``: readers check
+  ``catalog_on_missing()`` (``"error"`` | ``"empty"``; config rejects
+  anything else when it loads) and turn the miss into an empty frame;
+  writers always raise.
 - ``mapped_tables() -> {(database, table): CatalogTable}``: every mapped table.
 - ``view_name(database, table_name) -> str``: ``db_table`` (non-word chars
   become ``_``).
 - ``register_mapped_tables(spark)``: ``server.on_new_session`` callback
   (wired in ``prytt.shims.pyspark_hooks.on_session``) that registers each
   mapped table as table ``db.table`` in the session's default catalog and as
-  temp view ``db_table``. Tables Spark cannot read (no data yet) or the
-  server won't register log ``WARN`` and are skipped (no table, no view);
-  registered ones log one ``MAP`` line. Config errors (ORC, bad
+  temp view ``db_table``, at its location in its effective mode (a
+  passthrough table keeps its ``s3://`` URI and skips the local "no data
+  yet" check). Tables Spark cannot read (no data yet) or the server won't
+  register log ``WARN`` and are skipped (no table, no view); registered ones
+  log one ``MAP`` line ending ``mode=<mode> (table|global)``. Config errors (ORC, bad
   ``s3.mode``, passthrough without a region) raise. It also wraps
   ``spark.sql`` / ``spark.table``: mapped names in table positions
   (``sqltext.table_refs``) resolve case-insensitively, quoted or not, and
@@ -60,6 +75,21 @@ class CatalogTable(NamedTuple):
     path: str
     format: str
     options: dict
+    mode: str | None = None  # the table's own ``mode``; None follows ``s3.mode``
+
+
+def table_mode(table: CatalogTable) -> tuple:
+    """``(effective mode, source)``: the table's ``mode`` and ``"table"`` if
+    set, else the global ``s3.mode`` and ``"global"``."""
+    if table.mode is not None:
+        return table.mode, "table"
+    return config.get().s3_mode, "global"
+
+
+def is_passthrough(mode: str) -> bool:
+    """Whether a table with this effective mode (``table_mode``) is a
+    passthrough table: it reads and writes its real ``s3://`` location."""
+    return mode == "passthrough"
 
 
 def _aws_profile_region(env) -> str | None:
@@ -102,12 +132,12 @@ def _s3_key(uri: str) -> str | None:
     return None
 
 
-def map_path(uri: str, for_write: bool = False) -> str:
+def map_path(uri: str, for_write: bool = False, mode: str | None = None) -> str:
     key = _s3_key(uri)
     if key is None:
         return uri
     cfg = config.get()
-    if cfg.s3_mode == "passthrough":
+    if is_passthrough(cfg.s3_mode if mode is None else mode):
         _check_passthrough(cfg)
         return uri
     local_path = Path(cfg.s3_root).resolve() / key
@@ -122,10 +152,10 @@ def map_path(uri: str, for_write: bool = False) -> str:
     return local
 
 
-def map_paths(uris, for_write: bool = False) -> list:
+def map_paths(uris, for_write: bool = False, mode: str | None = None) -> list:
     if isinstance(uris, str):
         uris = [uris]
-    return [map_path(uri, for_write=for_write) for uri in uris]
+    return [map_path(uri, for_write=for_write, mode=mode) for uri in uris]
 
 
 class CatalogTableNotFound(LookupError):
@@ -155,9 +185,6 @@ class CatalogTableNotFound(LookupError):
         return self.args[0]
 
 
-_ENTRY_KEYS = {"path", "format", "options"}
-
-
 def mapped_tables() -> dict:
     """``{(database, table): CatalogTable}`` for every configured table."""
     tables = {}
@@ -170,16 +197,14 @@ def mapped_tables() -> dict:
 
 
 def _catalog_table(key: str, entry: dict) -> CatalogTable:
-    unknown = sorted(set(entry) - _ENTRY_KEYS)
-    if unknown:
-        raise ValueError(f"prytt config: catalog.{key!r} has unknown key(s) {', '.join(unknown)}")
+    # Unknown keys and a bad ``mode`` already failed when the config loaded.
     missing = [name for name in ("path", "format") if not entry.get(name)]
     if missing:
         raise ValueError(f"prytt config: catalog.{key!r} needs {' and '.join(missing)}")
     options = entry.get("options") or {}
     if not isinstance(options, dict):
         raise ValueError(f"prytt config: catalog.{key!r} options must be a table")
-    return CatalogTable(str(entry["path"]), str(entry["format"]), dict(options))
+    return CatalogTable(str(entry["path"]), str(entry["format"]), dict(options), entry.get("mode"))
 
 
 def view_name(database: str, table_name: str) -> str:
@@ -206,14 +231,16 @@ def register_mapped_tables(spark) -> None:
         name = f"{database}.{table_name}"
         view = view_name(database, table_name)
         fmt = formats.spark_format(table.format)  # config errors raise here
-        location = map_path(table.path)
+        mode, source = table_mode(table)
+        location = map_path(table.path, mode=mode)
         # Sail registers a missing parquet/json/csv location without error, as
         # an empty table with no columns, so check for data ourselves.
         if not _has_data(location):
             log("WARN", f"catalog table {name} skipped: no data at {location} yet")
             continue
         try:
-            io.read_df(spark, location, table.format, table.options).createOrReplaceTempView(view)
+            df = io.read_df(spark, location, table.format, table.options, mode=mode)
+            df.createOrReplaceTempView(view)
             try:
                 _create_table(
                     spark,
@@ -227,9 +254,9 @@ def register_mapped_tables(spark) -> None:
                 spark.catalog.dropTempView(view)
                 raise
         except PySparkException as exc:
-            log("WARN", f"catalog table {name} skipped: {first_line(exc)}")
+            log("WARN", f"catalog table {name} skipped: {first_line(exc)} (at {location})")
             continue
-        log("MAP", f"{name} -> {location} (table {name}, view {view})")
+        log("MAP", f"{name} -> {location} (table {name}, view {view}, mode={mode} ({source}))")
         registered[(database.lower(), table_name.lower())] = (database, table_name)
     _wrap_table_names(spark, registered)
 
