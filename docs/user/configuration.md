@@ -91,7 +91,8 @@ By default prytt refuses every write to real S3 it can detect, in every
 `s3.mode`, by raising `prytt.PryttS3WriteBlocked` (a `PermissionError`) that
 names the URI or table. It raises even with strict mode off. Writes prytt
 maps to local disk under `s3.root` and all reads are never blocked. See
-[Compatibility](compatibility.md#s3-write-lock) for what is covered so far.
+[Compatibility](compatibility.md#s3-write-lock) for what is covered and the
+known gaps.
 
 The only unlock is the environment variable `PRYTT_ALLOW_S3_WRITES` set to
 `1` or `true` (any case); any other value keeps the lock on. There is

@@ -114,7 +114,7 @@ flowchart TB
 | Paths and catalog | `prytt.paths` | Map `s3://` URIs to local paths; resolve mapped tables; register them as tables and temp views; wrap `spark.sql`/`spark.table` for name resolution and the unmapped-table hint. |
 | SQL text | `prytt.sqltext` | Quote identifiers and literals; mask comments and strings; find names in table positions. A heuristic tokenizer, not a parser. |
 | Iceberg | `prytt.iceberg` | Declare `glue_catalog` to Sail; per session set the warehouse dir and re-register databases and tables found on disk; add `LOCATION` to `CREATE DATABASE glue_catalog.<db>`. |
-| S3 write lock | `prytt.s3lock` | Refuse writes to real S3 (`PryttS3WriteBlocked`) unless `PRYTT_ALLOW_S3_WRITES` unlocks them: wrap `DataFrameWriter.save` and `spark.sql` (a heuristic write classifier on `sqltext` tokens; per-session registry of tables created at an S3 location), check Glue writers after path mapping, reject an `s3://` Iceberg warehouse; one `WARN` per session when unlocked. |
+| S3 write lock | `prytt.s3lock` | Refuse writes to real S3 (`PryttS3WriteBlocked`) unless `PRYTT_ALLOW_S3_WRITES` unlocks them: wrap `DataFrameWriter.save` / `saveAsTable` / `insertInto`, the `DataFrameWriterV2` terminal methods and `spark.sql` (a heuristic write classifier on `sqltext` tokens; per-session registry of tables created at an S3 location), check Glue writers after path mapping, reject an `s3://` Iceberg warehouse; one `WARN` per session when unlocked. |
 | I/O and formats | `prytt.io`, `prytt.formats` | Read/write DataFrames at mapped locations; translate Glue format names and options to Spark. |
 | Logging and strict mode | `prytt.stub` | `[prytt] TAG message` logging; `LogAny` catch-all base class; `GlueLocalUnsupported`. |
 | Glue API | `awsglue.*`, `awsgluedq.*` | The Glue classes and functions scripts import, implemented on Spark DataFrames or as logged stand-ins. |
@@ -193,7 +193,8 @@ Sail's catalogs live in memory and are per session, so everything prytt
 registers is redone for each new `SparkSession` (tracked by
 `session_id`). Three callbacks run, in order:
 
-1. **`s3lock.setup_session`.** Wrap `DataFrameWriter.save` (once per
+1. **`s3lock.setup_session`.** Wrap `DataFrameWriter.save`, `saveAsTable`
+   and `insertInto` and the `DataFrameWriterV2` terminal methods (once per
    process) and this session's `spark.sql` with the S3 write lock's SQL
    write classifier; log the unlocked `WARN`.
 2. **`paths.register_mapped_tables`.** For each `[catalog."db.table"]`

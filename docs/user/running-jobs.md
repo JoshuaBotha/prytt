@@ -172,7 +172,9 @@ you use passthrough mode. See
 
 Plain Spark writes to `s3://` (`df.write.parquet("s3://...")`) and SQL writes
 to an S3 location (``INSERT INTO delta.`s3://...` ``,
-`CREATE TABLE ... LOCATION 's3://...' AS SELECT`, ...) are blocked by the S3 write lock in every mode:
+`CREATE TABLE ... LOCATION 's3://...' AS SELECT`, ...), and `saveAsTable`,
+`insertInto` or `writeTo(...)` into a passthrough table or a table created at
+an S3 location, are blocked by the S3 write lock in every mode:
 prytt raises `PryttS3WriteBlocked` rather than let a local run write to real
 S3 with your shell's credentials. Write to a local path or use a Glue writer
 instead. See

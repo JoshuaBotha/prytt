@@ -42,8 +42,15 @@ Interface:
   the lock is on (per-session ``WARN`` when unlocked).
 - ``setup_session(spark)``: ``server.on_new_session`` callback. Installs the
   enforcement wrappers (once per process: ``DataFrameWriter.save``, which the
-  format shortcuts such as ``parquet`` / ``json`` / ``csv`` route through;
-  per session: ``spark.sql``) and logs the unlocked ``WARN``.
+  format shortcuts such as ``parquet`` / ``json`` / ``csv`` route through,
+  ``DataFrameWriter.saveAsTable`` / ``insertInto`` and the
+  ``DataFrameWriterV2`` terminal methods; per session: ``spark.sql``) and
+  logs the unlocked ``WARN``.
+
+The table-name writers call ``check_table_write`` on their table.
+``saveAsTable`` also checks a ``path`` option, and ``DataFrameWriterV2`` a
+``path`` option or ``location`` table property, with ``check_write``: those
+create a table at that location.
 
 ``spark.sql`` is checked by a best-effort classifier on the SQL text
 (``sqltext.statements``), not a parser. Write statements (``INSERT``,
@@ -372,8 +379,13 @@ def _wrap_sql(spark) -> None:
     spark.sql = sql_wrapper
 
 
+def _option(options, key):
+    """``options[key]`` matched case-insensitively, as Spark does, else ``None``."""
+    return next((v for k, v in options.items() if k.lower() == key), None)
+
+
 def _wrap_writers() -> None:
-    from pyspark.sql.connect.readwriter import DataFrameWriter
+    from pyspark.sql.connect.readwriter import DataFrameWriter, DataFrameWriterV2
 
     save = DataFrameWriter.save
     if getattr(save, "__prytt_s3lock_wrapped__", False):
@@ -381,13 +393,52 @@ def _wrap_writers() -> None:
 
     @functools.wraps(save)
     def save_wrapper(self, path=None, *args, **kwargs):
-        target = path
-        if target is None:  # .option("path", ...).save()
-            options = self._write.options
-            target = next((v for k, v in options.items() if k.lower() == "path"), None)
+        target = path if path is not None else _option(self._write.options, "path")
         check_write(target, self._spark, plain_spark=True)
         return save(self, path, *args, **kwargs)
 
     # A flag of its own: functools.wraps copies the wrapped function's __dict__.
     save_wrapper.__prytt_s3lock_wrapped__ = True
     DataFrameWriter.save = save_wrapper
+
+    save_as_table = DataFrameWriter.saveAsTable
+
+    @functools.wraps(save_as_table)
+    def save_as_table_wrapper(self, name, *args, **kwargs):
+        check_table_write(name, self._spark)
+        # .option("path", ...) or path=...: an external table at that location
+        check_write(_option({**self._write.options, **kwargs}, "path"), self._spark)
+        return save_as_table(self, name, *args, **kwargs)
+
+    DataFrameWriter.saveAsTable = save_as_table_wrapper
+
+    insert_into = DataFrameWriter.insertInto
+
+    @functools.wraps(insert_into)
+    def insert_into_wrapper(self, tableName, *args, **kwargs):
+        check_table_write(tableName, self._spark)
+        return insert_into(self, tableName, *args, **kwargs)
+
+    DataFrameWriter.insertInto = insert_into_wrapper
+
+    for method in _V2_METHODS:
+        setattr(DataFrameWriterV2, method, _v2_wrapper(getattr(DataFrameWriterV2, method)))
+
+
+_V2_METHODS = ("append", "create", "replace", "createOrReplace", "overwrite", "overwritePartitions")
+
+
+def _v2_wrapper(method):
+    """A ``DataFrameWriterV2`` terminal method: the table is the one given to
+    ``writeTo``; an ``option("path", ...)`` or ``tableProperty("location", ...)``
+    is where a new table goes."""
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        check_table_write(self._table_name, self._spark)
+        write = self._write
+        location = _option(write.options, "path") or _option(write.table_properties, "location")
+        check_write(location, self._spark)
+        return method(self, *args, **kwargs)
+
+    return wrapper
