@@ -89,7 +89,8 @@ def _check_passthrough(cfg) -> None:
         )
     log(
         "WARN",
-        f"s3.mode = 'passthrough' (region {region}): Sail reads S3 directly; best-effort, unverified",
+        f"s3.mode = 'passthrough' (region {region}): Sail reads S3 directly; "
+        "best-effort, unverified",
     )
     _passthrough_checked_for = cfg
 

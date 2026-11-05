@@ -15,8 +15,10 @@ Check tiers:
 
 Run locally (prytt installed):
   python glue_selftest_job.py --JOB_NAME selftest
-  python glue_selftest_job.py --JOB_NAME selftest --base_path s3://my-bucket/selftest --with_iceberg true
-  python glue_selftest_job.py   # JOB_NAME is None (logged WARN); or set PRYTT_ARG_JOB_NAME / [args] in prytt.toml
+  python glue_selftest_job.py --JOB_NAME selftest \
+      --base_path s3://my-bucket/selftest --with_iceberg true
+  python glue_selftest_job.py   # JOB_NAME is None (logged WARN); or set
+                                # PRYTT_ARG_JOB_NAME / [args] in prytt.toml
 
 Run on AWS Glue 6:
   Job parameters:
@@ -26,7 +28,8 @@ Run on AWS Glue 6:
     --datalake-formats iceberg
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
            --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
-           --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+           --conf spark.sql.catalog.glue_catalog.catalog-impl=\
+                  org.apache.iceberg.aws.glue.GlueCatalog
            --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
            --conf spark.sql.catalog.glue_catalog.warehouse=s3://<your-bucket>/glue-selftest/warehouse
   Every run writes under <base_path>/<run_id>/, so reruns never collide.
@@ -436,7 +439,10 @@ def _():
     )
     un = UnnestFrame.apply(frame=customers_dyf)
     sp = Spigot.apply(frame=orders_dyf, path=path("spigot"), options={"topk": 2})
-    return f"relationalize keys={sorted(rel.keys())} unnest_cols={len(un.toDF().columns)} spigot_rows={sp.count()}"
+    return (
+        f"relationalize keys={sorted(rel.keys())} unnest_cols={len(un.toDF().columns)} "
+        f"spigot_rows={sp.count()}"
+    )
 
 
 @check("EvaluateDataQuality.apply / process_rows", tier="SMOKE")
@@ -982,7 +988,8 @@ failed = [r for r in RESULTS if r[2] == "FAIL" and r[0] == "EXACT"]
 smoke_failed = [r for r in RESULTS if r[2] == "FAIL" and r[0] == "SMOKE"]
 passed = sum(1 for r in RESULTS if r[2] == "PASS")
 print(
-    f"\n{passed}/{len(RESULTS)} passed; EXACT failures: {len(failed)}; SMOKE failures: {len(smoke_failed)}"
+    f"\n{passed}/{len(RESULTS)} passed; "
+    f"EXACT failures: {len(failed)}; SMOKE failures: {len(smoke_failed)}"
 )
 logger.info(f"selftest finished: {passed}/{len(RESULTS)} passed")
 

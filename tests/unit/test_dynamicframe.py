@@ -183,6 +183,18 @@ def test_join_on_keys(spark, people):
     assert rows(out) == [(1, "ann", 10, 1), (1, "ann", 11, 1)]
 
 
+def test_join_with_key_lists_of_different_lengths_raises(spark, people):
+    from awsglue.dynamicframe import DynamicFrame
+
+    orders = DynamicFrame.fromDF(
+        spark.createDataFrame([(10, 1)], "order_id int, pid int"), None, "o"
+    )
+
+    # Pairing keys positionally would silently drop "name" and join on id alone.
+    with pytest.raises(ValueError):
+        people.join(["id", "name"], ["pid"], orders)
+
+
 def test_unknown_methods_log_stub_and_return_self(people, capsys):
     assert people.relationalize("root", "s3://tmp/") is people
     assert "STUB DynamicFrame.relationalize" in capsys.readouterr().err
@@ -215,4 +227,5 @@ def test_collection_keys_values_select(collection, people):
 def test_collection_map_applies_to_each_frame(collection):
     out = collection.map(lambda frame, ctx: frame.select_fields(["id"]))
 
-    assert [columns(out.select(k)) for k in out.keys()] == [["id"], ["id"]]
+    # keys() is the Glue API under test, not a dict.
+    assert [columns(out.select(k)) for k in out.keys()] == [["id"], ["id"]]  # noqa: SIM118

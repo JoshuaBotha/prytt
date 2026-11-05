@@ -112,7 +112,8 @@ def test_join_across_two_mapped_tables(tmp_path):
         from pyspark.sql import SparkSession
         spark = SparkSession.builder.getOrCreate()
         rows = spark.sql(
-            "select o.id, c.name from raw_db.orders o join raw_db.customers c on o.customer = c.customer"
+            "select o.id, c.name from raw_db.orders o "
+            "join raw_db.customers c on o.customer = c.customer"
         ).collect()
         print(sorted((r.id, r.name) for r in rows))
         """,
@@ -161,7 +162,8 @@ def test_non_spark_script_loads_nothing_from_spark_or_the_catalog(tmp_path):
         tmp_path,
         """
         import json, sys
-        print(sorted(m for m in ("pyspark", "pysail", "prytt.paths", "prytt.config") if m in sys.modules))
+        watched = ("pyspark", "pysail", "prytt.paths", "prytt.config")
+        print(sorted(m for m in watched if m in sys.modules))
         """,
     )
 
@@ -261,11 +263,15 @@ def test_script_created_table_errors_pass_through_without_hint(tmp_path):
         spark = SparkSession.builder.getOrCreate()
         spark.sql("create database scratch_db")
         spark.sql("create table scratch_db.x (a int) using parquet")
-        for query in ("select no_such_column from scratch_db.x", "select * from scratch_db.x join no_such_view"):
+        for query in (
+            "select no_such_column from scratch_db.x",
+            "select * from scratch_db.x join no_such_view",
+        ):
             try:
                 spark.sql(query).collect()
             except AnalysisException as exc:
-                print("hint" if "prytt" in str(exc) + str(getattr(exc, "__notes__", "")) else "no hint")
+                text = str(exc) + str(getattr(exc, "__notes__", ""))
+                print("hint" if "prytt" in text else "no hint")
         """,
     )
 
@@ -295,7 +301,8 @@ def test_column_reference_shaped_like_a_mapped_name_is_left_alone(tmp_path):
         """
         from pyspark.sql import SparkSession
         spark = SparkSession.builder.getOrCreate()
-        print(spark.sql("select RAW_DB.ORDERS from (select named_struct('ORDERS', 1) as RAW_DB)").columns)
+        query = "select RAW_DB.ORDERS from (select named_struct('ORDERS', 1) as RAW_DB)"
+        print(spark.sql(query).columns)
         """,
     )
 

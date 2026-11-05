@@ -63,13 +63,15 @@ def test_leading_comments_and_trailing_semicolon_are_handled(spark, warehouse):
     query = "-- make the db\n/* once */ create schema if not exists glue_catalog.`raw db`;\n"
 
     assert sent(spark, query) == (
-        f"-- make the db\n/* once */ create schema if not exists glue_catalog.`raw db` LOCATION '{warehouse.as_posix()}/raw db'"
+        "-- make the db\n/* once */ create schema if not exists glue_catalog.`raw db` "
+        f"LOCATION '{warehouse.as_posix()}/raw db'"
     )
 
 
 def test_location_goes_before_a_trailing_comment(spark, warehouse):
     assert sent(spark, "CREATE DATABASE glue_catalog.sales -- owned by data eng") == (
-        f"CREATE DATABASE glue_catalog.sales LOCATION '{warehouse.as_posix()}/sales' -- owned by data eng"
+        f"CREATE DATABASE glue_catalog.sales LOCATION '{warehouse.as_posix()}/sales' "
+        "-- owned by data eng"
     )
 
 
@@ -88,7 +90,10 @@ def test_an_explicit_location_is_kept_with_a_warning(spark, capsys):
 
 
 def test_the_warehouse_location_itself_is_kept_silently(spark, warehouse, capsys):
-    query = f"CREATE DATABASE IF NOT EXISTS glue_catalog.`sales` LOCATION '{warehouse.as_posix()}/sales'"
+    query = (
+        "CREATE DATABASE IF NOT EXISTS glue_catalog.`sales` "
+        f"LOCATION '{warehouse.as_posix()}/sales'"
+    )
 
     assert sent(spark, query) == query
     assert capsys.readouterr().err == ""
@@ -101,8 +106,8 @@ def test_databases_on_disk_are_recreated_without_warnings(warehouse, capsys):
     iceberg.setup_session(session)
 
     assert (
-        f"CREATE DATABASE IF NOT EXISTS glue_catalog.`sales` LOCATION '{warehouse.as_posix()}/sales'"
-        in session.queries
+        "CREATE DATABASE IF NOT EXISTS glue_catalog.`sales` "
+        f"LOCATION '{warehouse.as_posix()}/sales'" in session.queries
     )
     assert "WARN" not in capsys.readouterr().err
 

@@ -25,7 +25,10 @@ def test_package_exports_dynamic_frame():
 
 
 def test_importing_awsglue_does_not_import_pyspark():
-    code = "import sys, awsglue, awsglue.context, awsglue.dynamicframe; print('pyspark' in sys.modules)"
+    code = (
+        "import sys, awsglue, awsglue.context, awsglue.dynamicframe; "
+        "print('pyspark' in sys.modules)"
+    )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
 
     assert out.stdout.strip() == "False"

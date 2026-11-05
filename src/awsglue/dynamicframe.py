@@ -249,7 +249,7 @@ class DynamicFrame(LogAny):
         left, right = self._df, frame2.toDF()
         if list(paths1) == list(paths2):
             return self._wrap(left.join(right, on=list(paths1), how="inner"))
-        cond = [_col_of(left, a) == _col_of(right, b) for a, b in zip(paths1, paths2)]
+        cond = [_col_of(left, a) == _col_of(right, b) for a, b in zip(paths1, paths2, strict=True)]
         return self._wrap(left.join(right, on=cond, how="inner"))
 
     def repartition(

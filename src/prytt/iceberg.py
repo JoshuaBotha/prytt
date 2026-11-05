@@ -125,7 +125,7 @@ def _rewrite_create_database(query: str, warehouse: Path) -> str:
         )
         return query
 
-    tail = "".join(c for c, m in zip(query[end:], masked[end:]) if m != ";").rstrip()
+    tail = "".join(c for c, m in zip(query[end:], masked[end:], strict=True) if m != ";").rstrip()
     log("MAP", f"{CATALOG} database {db} -> {location}")
     return f"{query[:end]} LOCATION {literal(location)}{tail}"
 
@@ -153,7 +153,8 @@ def setup_session(spark) -> None:
     if CATALOG not in {c.name for c in spark.catalog.listCatalogs()}:
         log(
             "WARN",
-            f"{CATALOG} not available on this server (SAIL_CATALOG__LIST), Iceberg tables not registered",
+            f"{CATALOG} not available on this server (SAIL_CATALOG__LIST), "
+            "Iceberg tables not registered",
         )
         return
     # The built-in ``default`` has no location (its tables would land flat).

@@ -122,7 +122,7 @@ def test_passthrough_accepts_region_from_the_profile(monkeypatch, tmp_path):
 def test_unknown_s3_mode_is_rejected(monkeypatch):
     set_env(monkeypatch, PRYTT_S3_MODE="cloud")
 
-    with pytest.raises(ValueError, match="s3.mode"):
+    with pytest.raises(ValueError, match=r"s3\.mode"):
         paths.map_path("s3://b/k")
 
 
