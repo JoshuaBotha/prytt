@@ -49,10 +49,11 @@ src/prytt/
   server.py                    Sail lifecycle; on_before_start / on_new_session
   config.py                    Config dataclass; env + TOML layering
   paths.py                     s3 mapping; catalog lookup; table registration; sql/table wrappers
-  sqltext.py                   ident/literal quoting; mask; table_refs
+  sqltext.py                   ident/literal quoting; mask; table_refs; statements (tokens)
   iceberg.py                   SAIL_CATALOG env; per-session glue_catalog rebuild
   io.py                        read_df / write_df
-  s3lock.py                    S3 write lock: PryttS3WriteBlocked; check_write; writer wrappers
+  s3lock.py                    S3 write lock: PryttS3WriteBlocked; check_write / check_table_write;
+                               writer wrappers; spark.sql write classifier; S3-located table registry
   formats.py                   Glue format names and options -> Spark
   stub.py                      log(); LogAny; stub_log; GlueLocalUnsupported
   pytest_plugin.py             spark / glue_context / s3_root fixtures
@@ -98,7 +99,9 @@ module's spec.
   when you need the error at the call.
 - **One wrapper flag per wrapper.** `functools.wraps` copies `__dict__`, so a
   flag on an inner wrapper appears on the outer one. `spark.sql` is wrapped
-  twice (`__prytt_names_wrapped__` in paths, `__prytt_wrapped__` in iceberg).
+  three times (`__prytt_s3lock_sql_wrapped__` in s3lock, innermost;
+  `__prytt_names_wrapped__` in paths; `__prytt_wrapped__` in iceberg). Each
+  writer method s3lock wraps has its own `__prytt_s3lock_<method>_wrapped__`.
 - **Names are case-sensitive in Sail 0.7.3**, whatever
   `spark.sql.caseSensitive` says.
 
