@@ -66,7 +66,6 @@ tests/unit/                    one module, in process
 tests/acceptance/              scripts as subprocesses; real .pth path
 tests/acceptance/scripts/      canonical, Glue Studio, Spark-only and gap jobs
 examples/glue_selftest_job.py  runs on Glue 6 and locally; compare results
-spikes/                        throwaway spike scripts and NOTES.md
 ```
 
 Each module starts with an **Interface** docstring: its public functions and
@@ -146,7 +145,7 @@ known no-op.
 4. If it was a pass-through on purpose, check `examples/glue_selftest_job.py`:
    its check may move from `SMOKE` to `EXACT`.
 
-For `Filter` / `Map` (Python callbacks per record), spike S6 showed
+For `Filter` / `Map` (Python callbacks per record), [spike S6](../research/spikes.md) showed
 `mapInPandas` works; turn pandas `NaN` back into `None` before calling the
 user function, and re-raise worker exceptions with the traceback, because
 they otherwise arrive as an empty `PythonException()`.

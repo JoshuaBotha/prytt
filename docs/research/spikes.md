@@ -1,7 +1,7 @@
 # Spike notes (S1–S7)
 
 Run 2026-10-30 on macOS (arm64), Python 3.13, `pysail` 0.7.3, `pyspark-client` 4.1.4, pandas 3.1.0, pyarrow 26.0.0.
-Clean venv (not the project `.venv`). Scripts in this folder; each runs standalone with `SPARK_REMOTE` unset.
+Clean venv (not the project `.venv`). Each script ran standalone with `SPARK_REMOTE` unset. The scripts are no longer in the tree; recover one with `git show 6d9ad0e:spikes/<file>` (for example `git show 6d9ad0e:spikes/s6_udf.py > s6_udf.py`; S4 is a folder: `git checkout 6d9ad0e -- spikes/s4_hook`).
 
 ## Summary
 
@@ -66,9 +66,10 @@ Startup cost (`python -X importtime -c pass`):
 - So Sail uses the standard AWS Rust SDK chain, which includes a Profile provider (the Rust SDK supports SSO profiles).
 - **Skipped (decision 2026-11-01): `AWS_PROFILE=<sso profile>`.** Not run; passthrough is best-effort. If it ever matters, run:
   ```bash
+  git show 6d9ad0e:spikes/s5_s3.py > s5_s3.py
   aws sso login --profile sso-admin
   AWS_PROFILE=sso-admin AWS_REGION=us-west-2 PRYTT_DISABLE=1 \
-    <spike-venv>/bin/python spikes/s5_s3.py \
+    <spike-venv>/bin/python s5_s3.py \
     s3://ookla-open-data/parquet/performance/type=fixed/year=2019/quarter=1/2019-01-01_performance_fixed_tiles.parquet
   ```
   `OK` means passthrough works with the ambient profile. Pick a smaller object from your own bucket to make it quicker.

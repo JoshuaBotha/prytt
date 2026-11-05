@@ -34,4 +34,4 @@ For contributors.
 |---|---|
 | [Developer guide](developer/guide.md) | Set-up, code map, rules, extension seams, common changes, tests |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Branches, PR titles, definition of done, releasing |
-| `spikes/NOTES.md` | The spike results the design rests on |
+| [Spike findings](research/spikes.md) | The spike results (S1–S7, S-SQL1) the design rests on |
