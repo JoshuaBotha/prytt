@@ -35,7 +35,11 @@ def write_df(df, uri, format, format_options=None, partition_keys=None):
         raise ValueError("prytt: connection_options needs 'path' (an s3:// URI)")
     fmt = formats.spark_format(format)
     local = paths.map_path(uri, for_write=True)
-    writer = df.write.format(fmt).mode("append").options(**formats.spark_options(fmt, format_options, write=True))
+    writer = (
+        df.write.format(fmt)
+        .mode("append")
+        .options(**formats.spark_options(fmt, format_options, write=True))
+    )
     if partition_keys:
         writer = writer.partitionBy(*partition_keys)
     writer.save(local)

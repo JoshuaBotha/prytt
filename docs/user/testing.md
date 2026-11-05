@@ -35,6 +35,7 @@ enough for pure Spark code:
 ```python
 from jobs.orders import add_totals
 
+
 def test_add_totals(spark):
     df = spark.createDataFrame([(1, 2.0, 3)], "id long, price double, qty int")
     assert add_totals(df).collect()[0]["total"] == 6.0
@@ -51,6 +52,7 @@ import os
 import subprocess
 import sys
 
+
 def test_job_end_to_end(tmp_path):
     s3 = tmp_path / "s3"
     (s3 / "raw-bucket" / "orders").mkdir(parents=True)
@@ -59,11 +61,20 @@ def test_job_end_to_end(tmp_path):
     env = {**os.environ, "PRYTT_S3_ROOT": str(s3), "PRYTT_STRICT": "1"}
     env.pop("SPARK_REMOTE", None)  # let the job start its own Sail
     result = subprocess.run(
-        [sys.executable, "jobs/bronze_to_silver.py",
-         "--JOB_NAME", "test",
-         "--source_path", "s3://raw-bucket/orders/",
-         "--target_path", "s3://curated-bucket/orders/"],
-        env=env, capture_output=True, text=True, timeout=120,
+        [
+            sys.executable,
+            "jobs/bronze_to_silver.py",
+            "--JOB_NAME",
+            "test",
+            "--source_path",
+            "s3://raw-bucket/orders/",
+            "--target_path",
+            "s3://curated-bucket/orders/",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
 
     assert result.returncode == 0, result.stderr

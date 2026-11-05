@@ -118,8 +118,13 @@ def test_glue_studio_job_reads_catalog_runs_sql_and_skips_data_quality(project):
     proc = run(project, "glue_studio_job.py", "--JOB_NAME", "studio")
 
     assert proc.returncode == 0, proc.stderr
-    assert read_parquet(project / "s3" / "curated" / "totals", "name", "total") == [("Oliver", 3.0), ("Thandi", 13.75)]
-    assert "WARN EvaluateDataQuality skipped: ruleset 'orders_dq' not evaluated locally" in proc.stderr
+    assert read_parquet(project / "s3" / "curated" / "totals", "name", "total") == [
+        ("Oliver", 3.0),
+        ("Thandi", 13.75),
+    ]
+    assert (
+        "WARN EvaluateDataQuality skipped: ruleset 'orders_dq' not evaluated locally" in proc.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -148,7 +153,10 @@ def test_gap_job_logs_stubs_and_finishes_when_not_strict(project):
     proc = run(project, "gap_job.py", "--JOB_NAME", "gap", PRYTT_STRICT="0")
 
     assert proc.returncode == 0, proc.stderr
-    assert "STUB GlueContext.purge_s3_path('s3://curated/stale/', options={'retentionPeriod': 0})" in proc.stderr
+    assert (
+        "STUB GlueContext.purge_s3_path('s3://curated/stale/', options={'retentionPeriod': 0})"
+        in proc.stderr
+    )
     assert "STUB DynamicFrame.relationalize('root', 's3://tmp/relationalize/')" in proc.stderr
     assert proc.stdout.strip().splitlines()[-1] == "rows=3"
 

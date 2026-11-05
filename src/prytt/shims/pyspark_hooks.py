@@ -50,7 +50,9 @@ def register_session_setup():
     from prytt import iceberg, paths, server
 
     server.on_before_start(iceberg.set_sail_catalog_env)  # glue_catalog (T10)
-    server.on_new_session(paths.register_mapped_tables)  # catalog tables as db.table + db_table views
+    server.on_new_session(
+        paths.register_mapped_tables
+    )  # catalog tables as db.table + db_table views
     server.on_new_session(iceberg.setup_session)  # warehouse dir + glue_catalog tables (T10)
 
 

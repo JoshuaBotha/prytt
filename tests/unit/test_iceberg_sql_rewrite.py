@@ -15,7 +15,10 @@ class FakeSpark:
         self.queries = []
         self.conf = SimpleNamespace(set=lambda key, value: None)
         self.catalog = SimpleNamespace(
-            listCatalogs=lambda: [SimpleNamespace(name="sail"), SimpleNamespace(name="glue_catalog")]
+            listCatalogs=lambda: [
+                SimpleNamespace(name="sail"),
+                SimpleNamespace(name="glue_catalog"),
+            ]
         )
 
     def sql(self, sqlQuery, *args, **kwargs):
@@ -50,7 +53,10 @@ def test_create_database_without_location_gets_the_warehouse_location(spark, war
     assert sent(spark, "CREATE DATABASE glue_catalog.sales") == (
         f"CREATE DATABASE glue_catalog.sales LOCATION '{warehouse.as_posix()}/sales'"
     )
-    assert capsys.readouterr().err == f"[prytt] MAP  glue_catalog database sales -> {warehouse.as_posix()}/sales\n"
+    assert (
+        capsys.readouterr().err
+        == f"[prytt] MAP  glue_catalog database sales -> {warehouse.as_posix()}/sales\n"
+    )
 
 
 def test_leading_comments_and_trailing_semicolon_are_handled(spark, warehouse):
@@ -94,7 +100,10 @@ def test_databases_on_disk_are_recreated_without_warnings(warehouse, capsys):
 
     iceberg.setup_session(session)
 
-    assert f"CREATE DATABASE IF NOT EXISTS glue_catalog.`sales` LOCATION '{warehouse.as_posix()}/sales'" in session.queries
+    assert (
+        f"CREATE DATABASE IF NOT EXISTS glue_catalog.`sales` LOCATION '{warehouse.as_posix()}/sales'"
+        in session.queries
+    )
     assert "WARN" not in capsys.readouterr().err
 
 

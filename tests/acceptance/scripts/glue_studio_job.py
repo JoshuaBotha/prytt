@@ -1,11 +1,13 @@
 import sys
-from awsglue.transforms import *
-from awsglue.utils import getResolvedOptions
+
 from pyspark.context import SparkContext
+
+from awsglue import DynamicFrame
 from awsglue.context import GlueContext
 from awsglue.job import Job
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
 from awsgluedq.transforms import EvaluateDataQuality
-from awsglue import DynamicFrame
 
 
 def sparkSqlQuery(glueContext, query, mapping, transformation_ctx) -> DynamicFrame:

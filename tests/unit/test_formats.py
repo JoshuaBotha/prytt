@@ -49,7 +49,9 @@ def test_unknown_format_is_passed_to_sail_with_a_warning(capsys):
 
 
 def test_common_glue_options_are_renamed():
-    opts = formats.spark_options("csv", {"withHeader": True, "separator": "|", "quoteChar": "'", "escaper": "\\"})
+    opts = formats.spark_options(
+        "csv", {"withHeader": True, "separator": "|", "quoteChar": "'", "escaper": "\\"}
+    )
 
     assert opts == {"header": True, "sep": "|", "quote": "'", "escape": "\\", "inferSchema": True}
 

@@ -94,7 +94,10 @@ def test_rename_field_top_level_keeps_position(people):
 def test_rename_field_nested(people):
     out = people.rename_field("address.city", "address.town")
 
-    assert ddl(out) == "struct<id:int,name:string,age:string,address:struct<country:string,town:string>>"
+    assert (
+        ddl(out)
+        == "struct<id:int,name:string,age:string,address:struct<country:string,town:string>>"
+    )
     assert rows(out.select_fields(["address.town"])) == [(("cpt",),), (("ldn",),)]
 
 
@@ -136,7 +139,9 @@ def test_apply_mapping_backticks_name_a_literal_dotted_column(spark):
 def test_resolve_choice_cast_specs_are_real_casts(people):
     out = people.resolveChoice(specs=[("age", "cast:int"), ("address.city", "cast:string")])
 
-    assert ddl(out) == "struct<id:int,name:string,age:int,address:struct<city:string,country:string>>"
+    assert (
+        ddl(out) == "struct<id:int,name:string,age:int,address:struct<city:string,country:string>>"
+    )
     assert rows(out.select_fields(["age"])) == [(31,), (42,)]
 
 
@@ -169,7 +174,9 @@ def test_error_counts_are_zero(people):
 def test_join_on_keys(spark, people):
     from awsglue.dynamicframe import DynamicFrame
 
-    orders = DynamicFrame.fromDF(spark.createDataFrame([(10, 1), (11, 1)], "order_id int, pid int"), None, "o")
+    orders = DynamicFrame.fromDF(
+        spark.createDataFrame([(10, 1), (11, 1)], "order_id int, pid int"), None, "o"
+    )
 
     out = people.select_fields(["id", "name"]).join(["id"], ["pid"], orders)
 

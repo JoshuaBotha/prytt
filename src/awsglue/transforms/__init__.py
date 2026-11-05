@@ -27,29 +27,29 @@ Every transform also offers ``__call__`` (``ApplyMapping()(frame=...)``) and
 from prytt.stub import log, stub_log
 
 __all__ = [
-    "GlueTransform",
     "ApplyMapping",
-    "SelectFields",
     "DropFields",
-    "RenameField",
-    "Join",
     "DropNullFields",
-    "ResolveChoice",
-    "SelectFromCollection",
+    "ErrorsAsDynamicFrame",
+    "FillMissingValues",
     "Filter",
+    "FindIncrementalMatches",
+    "FindMatches",
+    "FlatMap",
+    "GlueTransform",
+    "Join",
     "Map",
+    "MapToCollection",
     "Relationalize",
-    "Unbox",
-    "UnnestFrame",
+    "RenameField",
+    "ResolveChoice",
+    "SelectFields",
+    "SelectFromCollection",
+    "Spigot",
     "SplitFields",
     "SplitRows",
-    "Spigot",
-    "ErrorsAsDynamicFrame",
-    "FlatMap",
-    "MapToCollection",
-    "FillMissingValues",
-    "FindMatches",
-    "FindIncrementalMatches",
+    "Unbox",
+    "UnnestFrame",
 ]
 
 _GLUE_OPTS = ("transformation_ctx", "info", "stageThreshold", "totalThreshold")
@@ -84,31 +84,70 @@ class GlueTransform:
 
 class ApplyMapping(GlueTransform):
     @classmethod
-    def apply(cls, frame, mappings, case_sensitive=False, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
-        return frame.apply_mapping(mappings, case_sensitive=case_sensitive, transformation_ctx=transformation_ctx, info=info)
+    def apply(
+        cls,
+        frame,
+        mappings,
+        case_sensitive=False,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
+        return frame.apply_mapping(
+            mappings,
+            case_sensitive=case_sensitive,
+            transformation_ctx=transformation_ctx,
+            info=info,
+        )
 
 
 class SelectFields(GlueTransform):
     @classmethod
-    def apply(cls, frame, paths, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def apply(
+        cls, frame, paths, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0
+    ):
         return frame.select_fields(paths, transformation_ctx=transformation_ctx, info=info)
 
 
 class DropFields(GlueTransform):
     @classmethod
-    def apply(cls, frame, paths, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def apply(
+        cls, frame, paths, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0
+    ):
         return frame.drop_fields(paths, transformation_ctx=transformation_ctx, info=info)
 
 
 class RenameField(GlueTransform):
     @classmethod
-    def apply(cls, frame, old_name, new_name, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
-        return frame.rename_field(old_name, new_name, transformation_ctx=transformation_ctx, info=info)
+    def apply(
+        cls,
+        frame,
+        old_name,
+        new_name,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
+        return frame.rename_field(
+            old_name, new_name, transformation_ctx=transformation_ctx, info=info
+        )
 
 
 class Join(GlueTransform):
     @classmethod
-    def apply(cls, frame1, frame2, keys1, keys2, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def apply(
+        cls,
+        frame1,
+        frame2,
+        keys1,
+        keys2,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
         return frame1.join(keys1, keys2, frame2, transformation_ctx=transformation_ctx, info=info)
 
 
@@ -221,19 +260,48 @@ class Filter(GlueTransform):
 
 class Map(GlueTransform):
     @classmethod
-    def apply(cls, frame, f, preservesPartitioning=False, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def apply(
+        cls,
+        frame,
+        f,
+        preservesPartitioning=False,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
         return _pass("Map", frame)
 
 
 class Relationalize(GlueTransform):
     @classmethod
-    def apply(cls, frame, staging_path=None, name="roottable", options=None, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def apply(
+        cls,
+        frame,
+        staging_path=None,
+        name="roottable",
+        options=None,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
         return _collection(_pass("Relationalize", frame), name)
 
 
 class Unbox(GlueTransform):
     @classmethod
-    def apply(cls, frame, path, format, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0, **options):
+    def apply(
+        cls,
+        frame,
+        path,
+        format,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+        **options,
+    ):
         return _pass("Unbox", frame)
 
 
@@ -245,7 +313,17 @@ class UnnestFrame(GlueTransform):
 
 class SplitFields(GlueTransform):
     @classmethod
-    def apply(cls, frame, paths, name1=None, name2=None, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def apply(
+        cls,
+        frame,
+        paths,
+        name1=None,
+        name2=None,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
         name1 = name1 or f"{frame.name or 'frame'}1"
         name2 = name2 or f"{frame.name or 'frame'}2"
         return _collection(_pass("SplitFields", frame), name1, name2)
@@ -253,7 +331,17 @@ class SplitFields(GlueTransform):
 
 class SplitRows(GlueTransform):
     @classmethod
-    def apply(cls, frame, comparison_dict, name1="frame1", name2="frame2", transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def apply(
+        cls,
+        frame,
+        comparison_dict,
+        name1="frame1",
+        name2="frame2",
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
         return _collection(_pass("SplitRows", frame), name1, name2)
 
 

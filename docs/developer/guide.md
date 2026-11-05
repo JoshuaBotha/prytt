@@ -105,8 +105,8 @@ module's spec.
 ### Session set-up callbacks (`prytt.server`)
 
 ```python
-server.on_before_start(fn)   # fn() just before Sail starts; not for external servers
-server.on_new_session(fn)    # fn(spark) once per new SparkSession, before the caller gets it
+server.on_before_start(fn)  # fn() just before Sail starts; not for external servers
+server.on_new_session(fn)  # fn(spark) once per new SparkSession, before the caller gets it
 ```
 
 Register both in `prytt.shims.pyspark_hooks.register_session_setup()`.

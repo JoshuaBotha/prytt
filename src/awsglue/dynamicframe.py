@@ -156,27 +156,41 @@ class DynamicFrame(LogAny):
     def printSchema(self):
         self._df.printSchema()
 
-    def select_fields(self, paths, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def select_fields(
+        self, paths, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0
+    ):
         tree = {}
         for path in paths:
             parts = _split(path)
             _tree_insert(tree, parts, _col(parts))
         return self._wrap(self._df.select(*_tree_columns(tree)))
 
-    def drop_fields(self, paths, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def drop_fields(
+        self, paths, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0
+    ):
         df = self._df
         for path in paths:
             df = _drop_path(df, _split(path))
         return self._wrap(df)
 
-    def rename_field(self, oldName, newName, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def rename_field(
+        self, oldName, newName, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0
+    ):
         old, new = _split(oldName), _split(newName)
         if len(old) == 1 and len(new) == 1:
             return self._wrap(self._df.withColumnRenamed(old[0], new[0]))
         df = _with_path(self._df, new, _col(old))
         return self._wrap(_drop_path(df, old))
 
-    def apply_mapping(self, mappings, case_sensitive=False, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def apply_mapping(
+        self,
+        mappings,
+        case_sensitive=False,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
         tree = {}
         for mapping in mappings:
             if len(mapping) == 4:
@@ -184,7 +198,9 @@ class DynamicFrame(LogAny):
             elif len(mapping) == 3:
                 src, tgt, tgt_type = mapping
             else:
-                raise ValueError(f"apply_mapping: expected (src, src_type, tgt, tgt_type), got {mapping!r}")
+                raise ValueError(
+                    f"apply_mapping: expected (src, src_type, tgt, tgt_type), got {mapping!r}"
+                )
             expr = _col(_split(src))
             cast = glue_type(tgt_type)
             if cast:
@@ -210,22 +226,46 @@ class DynamicFrame(LogAny):
                 parts = _split(path)
                 df = _with_path(df, parts, _col(parts).cast(glue_type(action[5:]) or action[5:]))
             else:
-                log("WARN", f"resolveChoice({path!r}, {action!r}) not applied locally; data passed through")
+                log(
+                    "WARN",
+                    f"resolveChoice({path!r}, {action!r}) not applied locally; data passed through",
+                )
         if choice:
-            log("WARN", f"resolveChoice(choice={choice!r}) not applied locally; data passed through")
+            log(
+                "WARN", f"resolveChoice(choice={choice!r}) not applied locally; data passed through"
+            )
         return self._wrap(df)
 
-    def join(self, paths1, paths2, frame2, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def join(
+        self,
+        paths1,
+        paths2,
+        frame2,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
         left, right = self._df, frame2.toDF()
         if list(paths1) == list(paths2):
             return self._wrap(left.join(right, on=list(paths1), how="inner"))
         cond = [_col_of(left, a) == _col_of(right, b) for a, b in zip(paths1, paths2)]
         return self._wrap(left.join(right, on=cond, how="inner"))
 
-    def repartition(self, num_partitions, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def repartition(
+        self, num_partitions, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0
+    ):
         return self._wrap(self._df.repartition(num_partitions))
 
-    def coalesce(self, num_partitions, shuffle=False, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):
+    def coalesce(
+        self,
+        num_partitions,
+        shuffle=False,
+        transformation_ctx="",
+        info="",
+        stageThreshold=0,
+        totalThreshold=0,
+    ):
         return self._wrap(self._df.coalesce(num_partitions))
 
     def filter(self, f, transformation_ctx="", info="", stageThreshold=0, totalThreshold=0):

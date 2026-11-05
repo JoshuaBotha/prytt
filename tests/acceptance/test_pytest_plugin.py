@@ -11,7 +11,14 @@ TIMEOUT = 300  # first Sail start after install can take ~30 s
 
 @pytest.fixture
 def run(pytester, monkeypatch):
-    for name in ("SPARK_REMOTE", "CI", "PRYTT_STRICT", "PRYTT_S3_ROOT", "PRYTT_LOG_LEVEL", "PRYTT_S3_MODE"):
+    for name in (
+        "SPARK_REMOTE",
+        "CI",
+        "PRYTT_STRICT",
+        "PRYTT_S3_ROOT",
+        "PRYTT_LOG_LEVEL",
+        "PRYTT_S3_MODE",
+    ):
         monkeypatch.delenv(name, raising=False)
 
     def run(source, *args):

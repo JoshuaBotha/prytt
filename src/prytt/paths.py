@@ -87,7 +87,10 @@ def _check_passthrough(cfg) -> None:
             "prytt s3.mode = 'passthrough' needs an AWS region: set AWS_REGION "
             "(or AWS_DEFAULT_REGION, or region in your AWS profile)"
         )
-    log("WARN", f"s3.mode = 'passthrough' (region {region}): Sail reads S3 directly; best-effort, unverified")
+    log(
+        "WARN",
+        f"s3.mode = 'passthrough' (region {region}): Sail reads S3 directly; best-effort, unverified",
+    )
     _passthrough_checked_for = cfg
 
 
@@ -140,7 +143,11 @@ class CatalogTableNotFound(LookupError):
             f'path = "s3://<bucket>/<prefix>/{table_name}/"\n'
             f'format = "parquet"\n'
             f"options = {{}}"
-            + (f'\n\nor set catalog.on_missing = "empty" to read it as an empty frame' if on_missing_tip else "")
+            + (
+                '\n\nor set catalog.on_missing = "empty" to read it as an empty frame'
+                if on_missing_tip
+                else ""
+            )
         )
 
     def __str__(self):
@@ -207,7 +214,14 @@ def register_mapped_tables(spark) -> None:
         try:
             io.read_df(spark, location, table.format, table.options).createOrReplaceTempView(view)
             try:
-                _create_table(spark, database, table_name, fmt, formats.spark_options(fmt, table.options), location)
+                _create_table(
+                    spark,
+                    database,
+                    table_name,
+                    fmt,
+                    formats.spark_options(fmt, table.options),
+                    location,
+                )
             except PySparkException:
                 spark.catalog.dropTempView(view)
                 raise
@@ -288,7 +302,9 @@ def _wrap_table_names(spark, registered: dict) -> None:
         parts = parse_name(tableName) if isinstance(tableName, str) else None
         canonical, missing = lookup(parts or [])
         tableName = canonical or tableName
-        return _hint_unmapped(lambda: table(tableName, *args, **kwargs), [missing] if missing else [])
+        return _hint_unmapped(
+            lambda: table(tableName, *args, **kwargs), [missing] if missing else []
+        )
 
     # Not ``__prytt_wrapped__``: functools.wraps copies the flag, and iceberg
     # checks that one before wrapping this wrapper in turn.

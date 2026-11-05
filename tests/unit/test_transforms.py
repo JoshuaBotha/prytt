@@ -48,9 +48,22 @@ def test_star_import_exposes_glue_transforms():
     exec("from awsglue.transforms import *", namespace)
 
     for name in (
-        "ApplyMapping", "SelectFields", "DropFields", "RenameField", "Join", "DropNullFields",
-        "ResolveChoice", "Filter", "Map", "Relationalize", "Unbox", "UnnestFrame",
-        "SplitFields", "SplitRows", "Spigot", "ErrorsAsDynamicFrame",
+        "ApplyMapping",
+        "SelectFields",
+        "DropFields",
+        "RenameField",
+        "Join",
+        "DropNullFields",
+        "ResolveChoice",
+        "Filter",
+        "Map",
+        "Relationalize",
+        "Unbox",
+        "UnnestFrame",
+        "SplitFields",
+        "SplitRows",
+        "Spigot",
+        "ErrorsAsDynamicFrame",
     ):
         assert name in namespace, name
 
@@ -75,7 +88,9 @@ def test_apply_mapping_with_glue_keywords(people):
 def test_select_fields_keeps_listed_paths(people):
     from awsglue.transforms import SelectFields
 
-    out = SelectFields.apply(frame=people, paths=["name", "address.country"], transformation_ctx="sf")
+    out = SelectFields.apply(
+        frame=people, paths=["name", "address.country"], transformation_ctx="sf"
+    )
 
     assert ddl(out) == "struct<name:string,address:struct<country:string>>"
     assert rows(out) == [("ann", ("za",)), ("bob", ("uk",))]
@@ -125,7 +140,9 @@ def test_join_on_same_key_name_keeps_one_key_column(spark, people):
     from awsglue.dynamicframe import DynamicFrame
     from awsglue.transforms import Join
 
-    orders = DynamicFrame.fromDF(spark.createDataFrame([(10, 2)], "order_id int, id int"), None, "orders")
+    orders = DynamicFrame.fromDF(
+        spark.createDataFrame([(10, 2)], "order_id int, id int"), None, "orders"
+    )
 
     df = Join.apply(frame1=people, frame2=orders, keys1=["id"], keys2=["id"]).toDF()
 
@@ -134,11 +151,14 @@ def test_join_on_same_key_name_keeps_one_key_column(spark, people):
 
 
 def test_drop_null_fields_drops_null_type_columns(spark):
-    from awsglue.dynamicframe import DynamicFrame
-    from awsglue.transforms import DropNullFields
     from pyspark.sql import functions as F
 
-    df = spark.createDataFrame([(1, "a"), (2, None)], "id int, some string").withColumn("nothing", F.lit(None))
+    from awsglue.dynamicframe import DynamicFrame
+    from awsglue.transforms import DropNullFields
+
+    df = spark.createDataFrame([(1, "a"), (2, None)], "id int, some string").withColumn(
+        "nothing", F.lit(None)
+    )
     out = DropNullFields.apply(frame=DynamicFrame.fromDF(df, None, "t"), transformation_ctx="dnf")
 
     assert out.toDF().columns == ["id", "some"]
@@ -157,9 +177,10 @@ def test_drop_null_fields_keeps_typed_all_null_columns(spark):
 
 
 def test_drop_null_fields_drops_nested_struct_null_type_fields(spark):
+    from pyspark.sql import functions as F
+
     from awsglue.dynamicframe import DynamicFrame
     from awsglue.transforms import DropNullFields
-    from pyspark.sql import functions as F
 
     s = F.struct(F.lit(1).alias("keep"), F.lit(None).alias("gone"))
     df = spark.range(2).select(F.col("id"), F.when(F.col("id") == 0, s).alias("s"))
@@ -170,9 +191,10 @@ def test_drop_null_fields_drops_nested_struct_null_type_fields(spark):
 
 
 def test_drop_null_fields_drops_null_type_fields_in_array_of_structs(spark):
+    from pyspark.sql import functions as F
+
     from awsglue.dynamicframe import DynamicFrame
     from awsglue.transforms import DropNullFields
-    from pyspark.sql import functions as F
 
     elem = F.struct(F.lit(1).alias("keep"), F.lit(None).alias("gone"))
     df = spark.range(1).select(F.col("id"), F.array(elem, elem).alias("arr"))

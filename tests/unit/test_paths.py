@@ -25,7 +25,10 @@ def set_env(monkeypatch, **values):
 def test_s3_uri_maps_under_s3_root(monkeypatch, tmp_path):
     set_env(monkeypatch, PRYTT_S3_ROOT=str(tmp_path / "root"))
 
-    assert paths.map_path("s3://bucket/a/b.json") == (tmp_path / "root" / "bucket" / "a" / "b.json").as_posix()
+    assert (
+        paths.map_path("s3://bucket/a/b.json")
+        == (tmp_path / "root" / "bucket" / "a" / "b.json").as_posix()
+    )
 
 
 def test_default_root_is_dot_prytt_s3_under_cwd(tmp_path):
@@ -38,13 +41,17 @@ def test_s3a_and_s3n_map_like_s3(scheme, tmp_path):
 
 
 def test_trailing_slash_is_kept(tmp_path):
-    assert paths.map_path("s3://b/dir/") == (tmp_path / ".prytt" / "s3" / "b" / "dir").as_posix() + "/"
+    assert (
+        paths.map_path("s3://b/dir/") == (tmp_path / ".prytt" / "s3" / "b" / "dir").as_posix() + "/"
+    )
 
 
 def test_mapping_is_logged_as_map(capsys, tmp_path):
     paths.map_path("s3://b/k")
 
-    assert capsys.readouterr().err == f"[prytt] MAP  s3://b/k -> {tmp_path.as_posix()}/.prytt/s3/b/k\n"
+    assert (
+        capsys.readouterr().err == f"[prytt] MAP  s3://b/k -> {tmp_path.as_posix()}/.prytt/s3/b/k\n"
+    )
 
 
 @pytest.mark.parametrize("uri", ["/abs/file.json", "rel/dir", "file:///x/y"])
@@ -69,7 +76,10 @@ def test_read_mapping_creates_nothing(tmp_path):
 def test_map_paths_maps_a_list_or_single_string(tmp_path):
     root = tmp_path / ".prytt" / "s3"
 
-    assert paths.map_paths(["s3://b/x", "s3://b/y"]) == [(root / "b" / "x").as_posix(), (root / "b" / "y").as_posix()]
+    assert paths.map_paths(["s3://b/x", "s3://b/y"]) == [
+        (root / "b" / "x").as_posix(),
+        (root / "b" / "y").as_posix(),
+    ]
     assert paths.map_paths("s3://b/x") == [(root / "b" / "x").as_posix()]
 
 
@@ -166,7 +176,11 @@ class _NoSpark:
     "toml, env, error",
     [
         ('[catalog."db.t"]\npath = "s3://b/t/"\nformat = "orc"\n', {}, GlueLocalUnsupported),
-        ('[catalog."db.t"]\npath = "s3://b/t/"\nformat = "json"\n', {"PRYTT_S3_MODE": "cloud"}, ValueError),
+        (
+            '[catalog."db.t"]\npath = "s3://b/t/"\nformat = "json"\n',
+            {"PRYTT_S3_MODE": "cloud"},
+            ValueError,
+        ),
         (
             '[catalog."db.t"]\npath = "s3://b/t/"\nformat = "json"\n',
             {"PRYTT_S3_MODE": "passthrough", "AWS_CONFIG_FILE": "/nonexistent"},

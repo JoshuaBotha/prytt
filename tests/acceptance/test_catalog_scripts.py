@@ -47,7 +47,12 @@ def run_script(tmp_path, code, extra_toml="", remote=None, ok=True):
     if remote:
         env["SPARK_REMOTE"] = remote
     proc = subprocess.run(
-        [sys.executable, str(script)], capture_output=True, text=True, env=env, cwd=tmp_path, timeout=TIMEOUT
+        [sys.executable, str(script)],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+        timeout=TIMEOUT,
     )
     if ok:
         assert proc.returncode == 0, proc.stderr
@@ -66,7 +71,9 @@ def test_spark_only_script_sees_mapped_tables_as_temp_views(tmp_path):
 
     assert proc.stdout.strip().splitlines()[-1] == "[1, 2]"
     orders = (tmp_path / "s3" / "raw" / "orders").resolve().as_posix()
-    assert f"MAP  raw_db.orders -> {orders}/ (table raw_db.orders, view raw_db_orders)" in proc.stderr
+    assert (
+        f"MAP  raw_db.orders -> {orders}/ (table raw_db.orders, view raw_db_orders)" in proc.stderr
+    )
 
 
 def test_glue_script_reads_from_catalog(tmp_path):

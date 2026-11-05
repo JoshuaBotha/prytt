@@ -27,7 +27,9 @@ def run(code: str, **env_overrides: str) -> subprocess.CompletedProcess:
 
 def ok(code: str, **env) -> subprocess.CompletedProcess:
     proc = run(code, **env)
-    assert proc.returncode == 0, f"exit {proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    assert proc.returncode == 0, (
+        f"exit {proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
     return proc
 
 

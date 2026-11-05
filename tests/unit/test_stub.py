@@ -3,7 +3,7 @@
 import pytest
 
 from prytt import config
-from prytt.stub import GlueLocalUnsupported, LogAny, log, stub_log
+from prytt.stub import GlueLocalUnsupported, LogAny, log
 
 
 @pytest.fixture(autouse=True)

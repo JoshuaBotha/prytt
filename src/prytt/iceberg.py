@@ -70,7 +70,11 @@ def _is_table_not_database(path: Path) -> bool:
     Iceberg or Delta table dirs of the default ``sail`` catalog, and Sail's
     flat ``<tbl>-<uuid>`` tables of a database created without a location.
     """
-    return (path / "metadata").is_dir() or (path / "_delta_log").is_dir() or _UUID_SUFFIX.search(path.name) is not None
+    return (
+        (path / "metadata").is_dir()
+        or (path / "_delta_log").is_dir()
+        or _UUID_SUFFIX.search(path.name) is not None
+    )
 
 
 def _subdirs(path: Path) -> list:
@@ -147,14 +151,19 @@ def setup_session(spark) -> None:
 
     # Sail reads an unknown ``glue_catalog.x`` as a nested namespace, so ask.
     if CATALOG not in {c.name for c in spark.catalog.listCatalogs()}:
-        log("WARN", f"{CATALOG} not available on this server (SAIL_CATALOG__LIST), Iceberg tables not registered")
+        log(
+            "WARN",
+            f"{CATALOG} not available on this server (SAIL_CATALOG__LIST), Iceberg tables not registered",
+        )
         return
     # The built-in ``default`` has no location (its tables would land flat).
     try:
         spark.sql(f"DROP DATABASE IF EXISTS {CATALOG}.`default`")
         _create_database(spark, warehouse, "default")
     except Exception as exc:
-        log("WARN", f"{CATALOG}.default keeps no location (its tables land flat): {first_line(exc)}")
+        log(
+            "WARN", f"{CATALOG}.default keeps no location (its tables land flat): {first_line(exc)}"
+        )
     _wrap_sql(spark, warehouse)
 
     for db_dir in _subdirs(warehouse):

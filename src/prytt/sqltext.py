@@ -27,7 +27,19 @@ _PART_RE = re.compile(_PART)
 _TOKEN = re.compile(r"`[^`]*`|\w+|[(),;]")
 _TABLE_KEYWORDS = {"FROM", "JOIN", "TABLE", "INTO", "UPDATE", "USING"}
 # Clause keywords that end the search back from a ``,`` for its ``FROM``.
-_CLAUSE_KEYWORDS = {"SELECT", "WHERE", "GROUP", "ORDER", "HAVING", "ON", "LIMIT", "SET", "VALUES", "WINDOW", "BY"}
+_CLAUSE_KEYWORDS = {
+    "SELECT",
+    "WHERE",
+    "GROUP",
+    "ORDER",
+    "HAVING",
+    "ON",
+    "LIMIT",
+    "SET",
+    "VALUES",
+    "WINDOW",
+    "BY",
+}
 
 
 def ident(name: str) -> str:
@@ -132,4 +144,3 @@ def table_refs(sql: str) -> list:
         if _in_table_position(words, index):
             refs.append((m.start(), m.end(), [_unquote(p) for p in parts]))
     return refs
-

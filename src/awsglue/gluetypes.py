@@ -4,28 +4,28 @@ simple schema construction work. Not used by prytt for any real typing;
 """
 
 __all__ = [
-    "DataType",
+    "ArrayType",
     "AtomicType",
     "BinaryType",
     "BooleanType",
     "ByteType",
+    "ChoiceType",
+    "DataType",
     "DateType",
     "DecimalType",
     "DoubleType",
+    "EnumType",
+    "Field",
     "FloatType",
     "IntegerType",
     "LongType",
+    "MapType",
     "NullType",
     "ShortType",
     "StringType",
-    "TimestampType",
-    "ArrayType",
-    "ChoiceType",
-    "MapType",
     "StructType",
-    "EnumType",
+    "TimestampType",
     "UnknownType",
-    "Field",
 ]
 
 
@@ -105,7 +105,10 @@ class Field:
         return f"Field({self.name}, {self.dataType!r})"
 
     def __eq__(self, other):
-        return isinstance(other, Field) and (self.name, self.dataType) == (other.name, other.dataType)
+        return isinstance(other, Field) and (self.name, self.dataType) == (
+            other.name,
+            other.dataType,
+        )
 
     def __hash__(self):
         return hash(self.name)

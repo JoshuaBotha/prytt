@@ -34,7 +34,16 @@ def test_importing_awsglue_does_not_import_pyspark():
 def test_gluetypes_has_common_type_names():
     from awsglue import gluetypes
 
-    for name in ("StringType", "IntegerType", "LongType", "DoubleType", "BooleanType", "StructType", "ArrayType", "Field"):
+    for name in (
+        "StringType",
+        "IntegerType",
+        "LongType",
+        "DoubleType",
+        "BooleanType",
+        "StructType",
+        "ArrayType",
+        "Field",
+    ):
         assert hasattr(gluetypes, name), name
 
     field = gluetypes.Field("id", gluetypes.IntegerType())
