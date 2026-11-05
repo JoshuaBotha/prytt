@@ -103,6 +103,14 @@ is not registered in that session (see
 such tables through `glue_context.create_dynamic_frame.from_catalog`, which
 looks the path up on every call.
 
+## Tests that read real S3
+
+Tests run with the S3 write lock on: the fixtures remove
+`PRYTT_ALLOW_S3_WRITES`. To read passthrough tables in tests, pick the AWS
+profile once per test run (`PRYTT_S3_PROFILE=team-sso pytest`), not per
+test: Sail keeps one AWS identity per process. See
+[S3 and AWS: testing with prytt](s3-and-aws.md#testing-with-prytt).
+
 ## Extra `SparkSession`s
 
 If a test makes a second session with `SparkSession.builder.create()`, call

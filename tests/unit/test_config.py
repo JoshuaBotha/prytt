@@ -266,6 +266,30 @@ def test_other_unknown_catalog_table_key_still_fails_at_load(tmp_path):
         config.load(env={}, cwd=tmp_path)
 
 
+def test_s3_profile_defaults_to_none(tmp_path):
+    assert config.load(env={}, cwd=tmp_path).s3_profile is None
+
+
+def test_s3_profile_is_read_from_the_file_and_env_overrides_it(tmp_path):
+    (tmp_path / "prytt.toml").write_text('[s3]\nprofile = "team-sso"\n')
+
+    assert config.load(env={}, cwd=tmp_path).s3_profile == "team-sso"
+    assert config.load(env={"PRYTT_S3_PROFILE": "other"}, cwd=tmp_path).s3_profile == "other"
+
+
+def test_s3_profile_in_pyproject_form(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[tool.prytt.s3]\nprofile = "team-sso"\n')
+
+    assert config.load(env={}, cwd=tmp_path).s3_profile == "team-sso"
+
+
+@pytest.mark.parametrize("value", ["", "  "])
+def test_an_empty_s3_profile_env_var_unsets_the_file_value(tmp_path, value):
+    (tmp_path / "prytt.toml").write_text('[s3]\nprofile = "team-sso"\n')
+
+    assert config.load(env={"PRYTT_S3_PROFILE": value}, cwd=tmp_path).s3_profile is None
+
+
 @pytest.mark.parametrize("mode", ["local", "passthrough"])
 def test_catalog_table_mode_in_pyproject_form(tmp_path, mode):
     (tmp_path / "pyproject.toml").write_text(

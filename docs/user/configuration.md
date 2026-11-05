@@ -73,8 +73,9 @@ ignore it).
 | `log_level` | `PRYTT_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`. `DEBUG` also leaves Sail's `RUST_LOG` alone. |
 | `strict` | `PRYTT_STRICT` | `true` if `CI` is `1`/`true`/`yes`, else `false` | Boolean. See [Strict mode](running-jobs.md#strict-mode). An explicit value from any source beats the `CI` default. |
 | `sail.port` | `PRYTT_SAIL_PORT` | `0` | Integer. Port for prytt's Sail server on `127.0.0.1`; `0` picks a free one. |
-| `s3.mode` | `PRYTT_S3_MODE` | `local` | `local` (map to `s3.root`) or `passthrough` (read real S3; best-effort). A catalog table's own [`mode`](#catalog-table-entries) overrides it for that table. |
+| `s3.mode` | `PRYTT_S3_MODE` | `local` | `local` (map to `s3.root`) or `passthrough` (read real S3; best-effort). A catalog table's own [`mode`](#catalog-table-entries) overrides it for that table. See [S3 and AWS](s3-and-aws.md). |
 | `s3.root` | `PRYTT_S3_ROOT` | `./.prytt/s3` | Path, relative to the current directory unless absolute. |
+| `s3.profile` | `PRYTT_S3_PROFILE` | none | AWS profile name Sail uses for S3, exported as `AWS_PROFILE`. An empty `PRYTT_S3_PROFILE` unsets a file value. See [AWS profile](#aws-profile-s3profile). |
 | `catalog.on_missing` | `PRYTT_CATALOG_ON_MISSING` | `error` | `error` or `empty`. Applies to `from_catalog` reads only. |
 | `catalog."db.table"` | | none | Table mapping; see below. |
 | `iceberg.warehouse` | `PRYTT_ICEBERG_WAREHOUSE` | `./.prytt/warehouse` | Path, made absolute against the current directory. An `s3://` URI is a config error unless `PRYTT_ALLOW_S3_WRITES` unlocks S3 writes. |
@@ -88,25 +89,49 @@ Unknown keys are an error, so a typo fails loudly rather than being ignored.
 ## S3 write lock: `PRYTT_ALLOW_S3_WRITES`
 
 By default prytt refuses every write to real S3 it can detect, in every
-`s3.mode`, by raising `prytt.PryttS3WriteBlocked` (a `PermissionError`) that
-names the URI or table. It raises even with strict mode off. Writes prytt
-maps to local disk under `s3.root` and all reads are never blocked. See
-[Compatibility](compatibility.md#s3-write-lock) for what is covered and the
-known gaps.
-
-The only unlock is the environment variable `PRYTT_ALLOW_S3_WRITES` set to
-`1` or `true` (any case); any other value keeps the lock on. There is
-deliberately **no config-file key**, so committed config can never unlock
-writes for a team or CI. Set it for one command when you mean to write to
-S3:
+`s3.mode`, by raising `prytt.PryttS3WriteBlocked` (a `PermissionError`),
+even with strict mode off. The only unlock is the environment variable
+`PRYTT_ALLOW_S3_WRITES` set to `1` or `true` (any case); any other value
+keeps the lock on. There is deliberately **no config-file key**, and the
+pytest plugin's fixtures always run locked.
 
 ```bash
 PRYTT_ALLOW_S3_WRITES=1 python my_job.py
 ```
 
-When writes are unlocked, prytt logs one `WARN` per Spark session. The
-pytest plugin's fixtures always run with the lock on, even if your shell sets
-`PRYTT_ALLOW_S3_WRITES`.
+See [S3 and AWS: the S3 write lock](s3-and-aws.md#the-s3-write-lock) for
+why, the unlock `WARN`, and the known gaps, and
+[Compatibility](compatibility.md#s3-write-lock) for every write it covers.
+
+## AWS profile: `s3.profile`
+
+```toml
+[tool.prytt.s3]
+profile = "my-sso-profile"   # or PRYTT_S3_PROFILE=my-sso-profile for one run
+```
+
+The AWS profile Sail uses for S3; any profile type works (SSO, assume-role,
+`credential_process`, static keys in the credentials file). Whenever it is
+set, prytt exports it as `AWS_PROFILE` before Sail starts, in every mode,
+overriding a different shell `AWS_PROFILE` with a `WARN`. Without it, prytt
+leaves every `AWS_*` variable alone. No region is needed.
+
+When passthrough is in use (`s3.mode` or any mapped table's effective
+`mode` is `passthrough`), session start also:
+
+- raises `ValueError` if `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` is
+  in the environment, since the AWS chain would prefer them over the
+  profile;
+- for an SSO profile, raises `RuntimeError` with
+  `run: aws sso login --profile <profile>` if its cached token is missing or
+  expired (a `WARN` instead if prytt can't read the cache, or if the token
+  is expired but the AWS SDK can refresh it).
+
+One AWS profile per process: a later session start that resolves a
+different `s3.profile` (or none, after one) raises `RuntimeError`.
+
+[S3 and AWS: AWS credentials](s3-and-aws.md#aws-credentials) explains each
+rule, with an SSO walkthrough and the exact log lines and errors.
 
 ## Catalog table entries
 
@@ -122,36 +147,19 @@ mode = "passthrough"           # optional: "local" or "passthrough"; default s3.
   TOML because it contains a dot.
 - Allowed keys: `path`, `format`, `options`, `mode`. Anything else is an
   error when the config loads.
-- `mode` sets this table's S3 mode, overriding `s3.mode`. The table's
-  **effective mode** is its `mode` if set, otherwise the global `s3.mode`
-  from whatever source (file or `PRYTT_S3_MODE`). An explicit `mode` wins
-  over `PRYTT_S3_MODE`, and there is no per-table env override. A bad value
-  (`"passthru"`) fails when the config loads, naming the allowed values.
-  - With effective mode `local` it is a
-    [local table](../../GLOSSARY.md#language): its `s3://` path maps under
-    `s3.root`.
-  - With effective mode `passthrough` it is a
-    [passthrough table](../../GLOSSARY.md#language): its `s3://` path goes to
-    Sail unchanged and is read from real S3, with no local "no data yet"
-    check at registration. Writes to it (`write_dynamic_frame.from_catalog`)
-    are blocked by the [S3 write lock](#s3-write-lock-prytt_allow_s3_writes).
-  - The effective mode applies to everything that names the table: the
-    registered table and temp view (`spark.sql`, `spark.table`) and
-    `from_catalog` reads and writes. `from_options` and plain Spark paths
-    always follow the global `s3.mode`, even for the same `s3://` path.
-  - The `MAP` line for each registered table ends with its effective mode
-    and where it came from: `mode=passthrough (table)` or
-    `mode=local (global)`.
-
-  For example, read one reference table from real S3 and keep everything
-  else local:
-
-  ```toml
-  [tool.prytt.catalog."ref_db.prices"]
-  path = "s3://gold-bucket/prices/"
-  format = "parquet"
-  mode = "passthrough"
-  ```
+- `mode` sets this table's S3 mode: `"local"` makes it a
+  [local table](../../GLOSSARY.md#language) (its `s3://` path maps under
+  `s3.root`), `"passthrough"` a
+  [passthrough table](../../GLOSSARY.md#language) (read from real S3, with no
+  local "no data yet" check; writes to it are blocked by the
+  [S3 write lock](#s3-write-lock-prytt_allow_s3_writes)). Without it the
+  table follows the global `s3.mode` from whatever source; an explicit
+  `mode` wins over `PRYTT_S3_MODE`, and there is no per-table env var. It
+  applies to everything that names the table (`spark.sql`, `spark.table`,
+  `from_catalog` reads and writes), not to `from_options` or plain Spark
+  paths. A bad value (`"passthru"`) fails when the config loads. The `MAP`
+  line for each registered table ends with `mode=<mode> (table|global)`.
+  See [S3 and AWS: per-table mode](s3-and-aws.md#per-table-mode).
 - `options` must be a table. `partitionKeys` in `options` is used by
   `write_dynamic_frame.from_catalog`; every other option is a format option.
 - Lookup is exact first, then case-insensitive.
@@ -203,7 +211,13 @@ option) are ignored with a `WARN`.
 | `SPARK_REMOTE` | read, set | If set before Spark is first used, prytt connects there and starts no server. Otherwise prytt sets it to its own Sail server and clears it at exit. |
 | `RUST_LOG` | read, set | Sail's log filter. prytt sets `error` unless it is already set or `log_level` is `DEBUG`. |
 | `SAIL_CATALOG__LIST`, `SAIL_CATALOG__DEFAULT_CATALOG` | read, set | Sail's catalogs. prytt declares `sail` (default) and `glue_catalog` unless already set. Not touched for an external server. |
-| `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_PROFILE`, `AWS_CONFIG_FILE` | read | Region check when `s3.mode` or a table's `mode` is `passthrough`. Credentials are read by Sail, not prytt. |
+| `AWS_PROFILE` | read, set | Set to `s3.profile` before Sail starts, when that is set (a different shell value is overridden with a `WARN`). Otherwise left alone. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | read | With `s3.profile` set and passthrough in use, either one is an error ([AWS profile](#aws-profile-s3profile)). |
+| `AWS_REGION`, `AWS_DEFAULT_REGION` | read | Only for the region `INFO` line when passthrough is in use; no region is required. |
+| `AWS_CONFIG_FILE`, `HOME` | read | Where prytt finds the AWS config file (region line, SSO profile detection) and the AWS CLI SSO token cache for the [SSO check](#aws-profile-s3profile). |
+
+prytt never reads credentials itself (the SSO check only reads a token's expiry); Sail does, through the AWS credential
+chain, from the `AWS_*` variables in the process.
 
 Any other `SAIL_*` variable you set reaches Sail unchanged, because the
 server runs in the same process.

@@ -133,23 +133,26 @@ from `rowLevelOutcomes` fails with Spark's "cannot resolve" error.
 
 - Only `GlueContext` readers and writers and catalog `path`s are mapped.
   `spark.read...load("s3://...")` and SQL `LOCATION 's3://...'` are passed
-  to Sail unchanged and fail in `local` mode (Sail has no credentials or the
-  bucket doesn't exist). `df.write...save("s3://...")` and SQL writes to an
+  to Sail unchanged in every mode, so they read real S3 if the process has
+  AWS credentials and fail if not. `df.write...save("s3://...")` and SQL writes to an
   S3 location are blocked by the [S3 write lock](#s3-write-lock).
 - Writes append. Glue's sinks append too, but a local re-run sees the
   previous run's output; delete the target directory between runs.
 - There is no S3 consistency, listing or permission emulation. A path that
   doesn't exist fails at the first action on the frame (Spark Connect is
   lazy), not at the `from_options` call.
-- `passthrough` mode is best-effort: tested only with anonymous public
-  reads. A region is required.
+- `passthrough` mode (global or per table) is best-effort: tested only with
+  anonymous public reads. No region is required (Sail discovers each
+  bucket's), and the AWS profile comes from `s3.profile`, one per process.
+  See [S3 and AWS](s3-and-aws.md).
 
 ## S3 write lock
 
 prytt refuses writes to real S3 by raising `PryttS3WriteBlocked` (a
 `PermissionError`), in every `s3.mode` and even with strict mode off. Unlock
 with `PRYTT_ALLOW_S3_WRITES=1`; see
-[Configuration](configuration.md#s3-write-lock-prytt_allow_s3_writes).
+[S3 and AWS: the S3 write lock](s3-and-aws.md#the-s3-write-lock) for why
+and how. This section is the exact coverage.
 
 | Write | Blocked when |
 |---|---|

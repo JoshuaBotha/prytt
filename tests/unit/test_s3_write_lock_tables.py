@@ -18,7 +18,7 @@ UNLOCK = "PRYTT_ALLOW_S3_WRITES"
 def clean_env(monkeypatch, s3_root):
     for name in ("CI", "PRYTT_STRICT", "PRYTT_LOG_LEVEL", "PRYTT_S3_MODE", UNLOCK):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("AWS_REGION", "eu-west-1")  # passthrough's region check
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")  # so Sail needs no bucket-region lookup
     config.reset()
     yield
     config.reset()

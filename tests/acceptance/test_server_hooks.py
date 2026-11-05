@@ -209,6 +209,24 @@ def test_session_seam_hooks():
     assert out.stdout.strip() == str([("before", False), ("session", 1), ("session", 1)])
 
 
+def test_s3_profile_is_exported_before_sail_starts():
+    out = ok(
+        """
+        import os
+        from prytt import server
+        seen = []
+        server.on_before_start(lambda: seen.append(os.environ.get("AWS_PROFILE")))
+        from pyspark.context import SparkContext
+        SparkContext()  # the Glue boilerplate start path
+        print(seen)
+        """,
+        PRYTT_S3_PROFILE="team-sso",
+        AWS_PROFILE="",
+    )
+    assert out.stdout.strip() == str(["team-sso"])
+    assert "INFO AWS_PROFILE=team-sso" in out.stderr
+
+
 def test_importing_pyspark_does_not_start_sail():
     out = ok(
         """

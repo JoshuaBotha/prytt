@@ -11,11 +11,9 @@ Interface:
   returned unchanged. ``for_write=True`` also creates the local directory.
   ``s3.root`` is read from ``config.get()`` on every call, so changing
   ``PRYTT_S3_ROOT`` + ``config.reset()`` redirects later calls (pytest plugin).
-  In passthrough mode URIs are left alone for Sail to read from S3:
-  the first call checks a region is set (``AWS_REGION``,
-  ``AWS_DEFAULT_REGION`` or the profile's ``region`` in the AWS config file)
-  and raises ``RuntimeError`` if not, and logs one best-effort ``WARN`` (both
-  name ``s3.mode`` or, when only a table's ``mode`` is passthrough, the table).
+  In passthrough mode URIs are left alone for Sail to read from S3 (no
+  region needed: Sail discovers each bucket's; ``prytt.aws`` logs the region
+  at session start).
 - ``map_paths(uris, for_write=False, mode=None) -> list[str]``: ``map_path``
   over a list (or one string).
 - ``CatalogTable(path, format, options, mode=None)``: what a catalog lookup
@@ -29,6 +27,9 @@ Interface:
 - ``is_passthrough(mode) -> bool``: whether a table with that effective mode
   is a passthrough table (reads and writes its real ``s3://`` location; the
   S3 write lock blocks writes to it). Otherwise it is a local table.
+- ``passthrough_in_use(cfg=None) -> bool``: whether the global ``s3.mode``
+  or any mapped table's effective mode is passthrough, so Sail may read
+  real S3 (``prytt.aws`` checks the AWS setup only then).
 - ``resolve_table(database, table_name) -> CatalogTable``: look up
   ``catalog."database.table"`` in config (exact key first, then
   case-insensitive). Unmapped tables raise ``CatalogTableNotFound`` (a
@@ -50,7 +51,7 @@ Interface:
   yet" check). Tables Spark cannot read (no data yet) or the server won't
   register log ``WARN`` and are skipped (no table, no view); registered ones
   log one ``MAP`` line ending ``mode=<mode> (table|global)``. Config errors (ORC, bad
-  ``s3.mode``, passthrough without a region) raise. It also wraps
+  ``s3.mode``) raise. It also wraps
   ``spark.sql`` / ``spark.table``: mapped names in table positions
   (``sqltext.table_refs``) resolve case-insensitively, quoted or not, and
   Spark's not-found error for one unmapped ``db.table`` gets the
@@ -59,7 +60,6 @@ Interface:
 """
 
 import functools
-import os
 import re
 from pathlib import Path
 from typing import NamedTuple
@@ -69,7 +69,6 @@ from prytt.sqltext import ident, literal, parse_name, table_refs
 from prytt.stub import first_line, log
 
 _S3_SCHEMES = ("s3://", "s3a://", "s3n://")
-_passthrough_checked_for = None  # the Config passthrough was last checked under
 
 
 class CatalogTable(NamedTuple):
@@ -93,50 +92,11 @@ def is_passthrough(mode: str) -> bool:
     return mode == "passthrough"
 
 
-def _aws_profile_region(env) -> str | None:
-    import configparser
-
-    config_file = Path(env.get("AWS_CONFIG_FILE") or Path.home() / ".aws" / "config")
-    profile = env.get("AWS_PROFILE") or "default"
-    parser = configparser.ConfigParser()
-    try:
-        parser.read(config_file)
-    except configparser.Error:
-        return None
-    section = "default" if profile == "default" else f"profile {profile}"
-    return parser.get(section, "region", fallback=None)
-
-
-def _passthrough_source(cfg, uri: str) -> str:
-    """What made ``uri`` passthrough, for messages: ``s3.mode = 'passthrough'``,
-    else the passthrough table(s) mapped at ``uri``."""
+def passthrough_in_use(cfg=None) -> bool:
+    cfg = config.get() if cfg is None else cfg
     if is_passthrough(cfg.s3_mode):
-        return "s3.mode = 'passthrough'"
-    names = sorted(
-        f"{database}.{table_name}"
-        for (database, table_name), table in mapped_tables().items()
-        if table.mode is not None and is_passthrough(table.mode) and table.path == uri
-    )
-    return f"passthrough table {', '.join(names)}" if names else f"passthrough table at {uri}"
-
-
-def _check_passthrough(cfg, uri: str) -> None:
-    global _passthrough_checked_for
-    if _passthrough_checked_for is cfg:
-        return
-    env = os.environ
-    region = env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION") or _aws_profile_region(env)
-    source = _passthrough_source(cfg, uri)
-    if not region:
-        raise RuntimeError(
-            f"prytt {source} needs an AWS region: set AWS_REGION "
-            "(or AWS_DEFAULT_REGION, or region in your AWS profile)"
-        )
-    log(
-        "WARN",
-        f"{source} (region {region}): Sail reads S3 directly; best-effort, unverified",
-    )
-    _passthrough_checked_for = cfg
+        return True
+    return any(is_passthrough(table_mode(table)[0]) for table in mapped_tables().values())
 
 
 def _s3_key(uri: str) -> str | None:
@@ -152,7 +112,6 @@ def map_path(uri: str, for_write: bool = False, mode: str | None = None) -> str:
         return uri
     cfg = config.get()
     if is_passthrough(cfg.s3_mode if mode is None else mode):
-        _check_passthrough(cfg, uri)
         return uri
     local_path = Path(cfg.s3_root).resolve() / key
     # Forward slashes on every OS: Spark takes C:/... on Windows, and a
@@ -232,8 +191,8 @@ def register_mapped_tables(spark) -> None:
     A table whose data Spark cannot read yet (nothing written), or that the
     server will not register, is skipped with a ``WARN`` and gets neither
     name, so session creation never fails because of it. Config errors
-    (unsupported format such as ORC, bad ``s3.mode``, passthrough without a
-    region) are resolved before Spark is touched and raise. ``IF NOT EXISTS``
+    (unsupported format such as ORC, bad ``s3.mode``) are resolved before
+    Spark is touched and raise. ``IF NOT EXISTS``
     keeps registration safe on a persistent external catalog.
     """
     from pyspark.errors import PySparkException

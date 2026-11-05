@@ -25,7 +25,7 @@ def project(monkeypatch, tmp_path, s3_root):
         "AWS_SESSION_TOKEN",
     ):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("AWS_REGION", "eu-west-1")  # passthrough's region check
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")  # so Sail needs no bucket-region lookup
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "prytt-test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "prytt-test")
     monkeypatch.setenv("AWS_ENDPOINT_URL", "http://127.0.0.1:9")

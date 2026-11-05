@@ -27,6 +27,7 @@ and prytt only starts its own Sail when it is unset.
 | `setup:dev` | Fresh clone to ready, installs the pre-commit hooks (idempotent). |
 | `test` | `test:unit` then `test:acceptance`. |
 | `test:unit` / `test:acceptance` | One suite; extra args go to pytest (`mise run test:unit -k catalog`). |
+| `test:s3-live` | Optional manual check against real S3 (see [Checking against real S3](#checking-against-real-s3)). Not in `test` or `ci`. |
 | `build:dist` | Wheel and sdist into `dist/`. |
 | `build:check-wheel` | Install the wheel into a clean venv; check `prytt.pth` lands at the site-packages root and the packages import. |
 | `lint` / `lint:fix` | `ruff check` + `ruff format --check`; `:fix` applies both. |
@@ -54,6 +55,7 @@ src/prytt/
   io.py                        read_df / write_df
   s3lock.py                    S3 write lock: PryttS3WriteBlocked; check_write / check_table_write;
                                writer wrappers; spark.sql write classifier; S3-located table registry
+  aws.py                       s3.profile -> AWS_PROFILE; session-start AWS checks (SSO token, region log)
   formats.py                   Glue format names and options -> Spark
   stub.py                      log(); LogAny; stub_log; GlueLocalUnsupported
   pytest_plugin.py             spark / glue_context / s3_root fixtures
@@ -182,6 +184,7 @@ silently changes their query. Tests: `tests/acceptance/test_catalog_scripts.py`,
 |---|---|---|
 | Unit | `tests/unit/` | One module's behaviour, in process. Fast. |
 | Acceptance | `tests/acceptance/` | Anything touching start-up, hooks, or what a job script sees. Runs scripts with `subprocess` and `sys.executable`, so the installed `prytt.pth` runs for real. |
+| Live S3 | `tests/live/` | Opt-in, marker `s3_live`, only via `mise run test:s3-live`. Not in `testpaths`, so plain `pytest`, `test` and `ci` never collect it. |
 
 - Test-first: watch the new test fail for the expected reason before the fix.
 - Every bug fix comes with a regression test that fails without it.
@@ -207,6 +210,35 @@ slice of Spark SQL, and prints a table of `EXACT` (must match) and `SMOKE`
 (must run) checks. Run it locally and as a Glue 6 job (instructions in its
 docstring) after changes to behaviour that real Glue also has.
 
+### Checking against real S3
+
+`mise run test:s3-live` is optional manual verification of S3 passthrough
+against real AWS. It is **not** part of `mise run test` or `mise run ci`, and
+not required for a release. It maps a passthrough table at
+`PRYTT_TEST_S3_URI` and reads it with `spark.sql` (schema present, at least
+one row), then checks that a write to a new sibling prefix
+(`<parent>/_prytt_live_write_check_<uuid>/`, default error-if-exists mode)
+raises `PryttS3WriteBlocked`. It never writes to S3: the task unsets
+`PRYTT_ALLOW_S3_WRITES`, and the lock raises before Sail.
+
+```bash
+PRYTT_TEST_S3_URI=s3://my-bucket/path/to/table/ \
+PRYTT_S3_PROFILE=my-sso-profile \
+mise run test:s3-live
+```
+
+- Without `PRYTT_TEST_S3_URI` the tests report as skipped and the task exits 0.
+- Credentials come from your shell: `PRYTT_S3_PROFILE`, or `AWS_*` env vars
+  and the default chain. No region needed: Sail discovers the bucket's
+  region (optional hint: `AWS_REGION` only matters with a custom endpoint
+  such as `AWS_ENDPOINT_URL`).
+- `PRYTT_TEST_S3_FORMAT` (default `parquet`) is the data's format;
+  `PRYTT_TEST_S3_PARTITIONS` (comma-separated) names partition columns the
+  table must expose, if the data is partitioned.
+- The tests live in `tests/live/` and run in their own pytest process:
+  unit and acceptance tests point AWS at a dead endpoint with fake keys, and
+  Sail loads AWS config once per process, so the two must never share one.
+
 ## Upgrading Sail or pyspark-client
 
 1. Bump in `pyproject.toml` (`pysail`, `pyspark-client` stays `<4.2` until
@@ -222,6 +254,7 @@ docstring) after changes to behaviour that real Glue also has.
 | What changed | Update |
 |---|---|
 | User-visible behaviour | The page in `docs/user/` that covers it, and `README.md` if it changes the quick start. |
+| S3 modes, the S3 write lock or AWS auth | [S3 and AWS](../user/s3-and-aws.md), plus the keys in the configuration reference and the lock's coverage in compatibility. |
 | A Glue gap opened or closed | [Compatibility and limits](../user/compatibility.md) and the module docstring. |
 | A design decision with real alternatives | A new ADR in `docs/adr/`, next number. |
 | Structure, flow or a seam | [Architecture overview](../architecture/overview.md) and this guide. |

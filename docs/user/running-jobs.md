@@ -170,37 +170,23 @@ or in SQL (`LOCATION 's3://...'`). Those reach Sail unchanged and fail unless
 you use passthrough mode. See
 [Compatibility and limits](compatibility.md#s3-and-paths).
 
-Plain Spark writes to `s3://` (`df.write.parquet("s3://...")`) and SQL writes
-to an S3 location (``INSERT INTO delta.`s3://...` ``,
-`CREATE TABLE ... LOCATION 's3://...' AS SELECT`, ...), and `saveAsTable`,
-`insertInto` or `writeTo(...)` into a passthrough table or a table created at
-an S3 location, are blocked by the S3 write lock in every mode:
-prytt raises `PryttS3WriteBlocked` rather than let a local run write to real
-S3 with your shell's credentials. Write to a local path or use a Glue writer
-instead. See
-[S3 write lock](compatibility.md#s3-write-lock).
+Plain Spark writes to `s3://` (`df.write.parquet("s3://...")`), SQL writes
+to an S3 location, and writes into a passthrough table are blocked by the
+S3 write lock in every mode: prytt raises `PryttS3WriteBlocked` rather than
+let a local run write to real S3 with your shell's credentials. Write to a
+local path or use a Glue writer instead.
 
-### Reading real S3 (passthrough, best-effort)
+### Reading real S3
 
-`s3.mode = "passthrough"` (`PRYTT_S3_MODE=passthrough`) leaves `s3://` URIs
-alone and lets Sail read real S3 through the standard AWS credential chain
-(environment, profile, web identity, ECS, IMDS). A region is required
-(`AWS_REGION`, `AWS_DEFAULT_REGION` or the profile's `region`), and prytt
-fails early with a `RuntimeError` if none is set.
+To read real S3, set `s3.mode = "passthrough"` for everything, or
+`mode = "passthrough"` on just the catalog tables you need. Passthrough is
+best-effort: only anonymous public reads have been verified. Pick the AWS
+identity with `s3.profile` (SSO profiles included); no region is needed.
 
-**This mode is unverified.** Anonymous public reads
-(`AWS_SKIP_SIGNATURE=true`) were tested; SSO profiles and other credential
-setups were not. prytt logs a one-line `WARN` when passthrough is on.
-Glue writers (`write_dynamic_frame.from_options` / `from_catalog`) raise
-`PryttS3WriteBlocked` in passthrough mode unless you set
-`PRYTT_ALLOW_S3_WRITES=1` for that run; see
-[Configuration](configuration.md#s3-write-lock-prytt_allow_s3_writes).
-Without credentials, Sail waits about 1 s on IMDS and then fails.
-
-To read just one or two catalog tables from real S3 and keep everything else
-local, leave `s3.mode = "local"` and set `mode = "passthrough"` on those
-tables (or the reverse: `mode = "local"` on a table under global
-passthrough). See [Catalog table entries](configuration.md#catalog-table-entries).
+[S3 and AWS](s3-and-aws.md) covers all of it: which mode suits your case,
+what each call does in each mode, per-table `mode`, the S3 write lock and
+how to unlock it, AWS profiles with an SSO walkthrough, and the
+one-profile-per-process rule.
 
 ## Catalog tables
 
