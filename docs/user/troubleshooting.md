@@ -97,13 +97,16 @@ key and the file. See the [configuration reference](configuration.md).
 Your shell has static AWS keys and `s3.profile` is set while passthrough is
 in use. The AWS chain would use the keys and ignore the profile. Unset
 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, or drop `s3.profile` (and
-`PRYTT_S3_PROFILE`). See [AWS profile](configuration.md#aws-profile-s3profile).
+`PRYTT_S3_PROFILE`). See [Static keys shadow a profile](s3-and-aws.md#static-keys-shadow-a-profile).
 
 ### `RuntimeError: prytt: one AWS profile per process`
 
 The resolved `s3.profile` changed after the first session in this process
-(for example `PRYTT_S3_PROFILE` plus `config.reset()` in a test). Sail loads
-AWS config once per process, so run the other profile in a new process.
+(for example `PRYTT_S3_PROFILE` plus `config.reset()` in a test, or a
+notebook cell). Sail loads AWS config once per process. Set the profile once
+before the process starts (`PRYTT_S3_PROFILE` in the shell, `mise.toml` or
+CI; per test run, not per test), or restart the process or kernel. See
+[One AWS profile per process](s3-and-aws.md#one-aws-profile-per-process).
 
 ### Passthrough mode hangs for a second, then fails with a credentials error
 

@@ -251,6 +251,7 @@ mise run test:s3-live
 | What changed | Update |
 |---|---|
 | User-visible behaviour | The page in `docs/user/` that covers it, and `README.md` if it changes the quick start. |
+| S3 modes, the S3 write lock or AWS auth | [S3 and AWS](../user/s3-and-aws.md), plus the keys in the configuration reference and the lock's coverage in compatibility. |
 | A Glue gap opened or closed | [Compatibility and limits](../user/compatibility.md) and the module docstring. |
 | A design decision with real alternatives | A new ADR in `docs/adr/`, next number. |
 | Structure, flow or a seam | [Architecture overview](../architecture/overview.md) and this guide. |

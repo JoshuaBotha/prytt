@@ -81,7 +81,9 @@ def _check_same_profile(profile) -> None:
         f"prytt: one AWS profile per process. This process started with "
         f"{_describe(_process_profile)}, now the config resolves to {_describe(profile)}. "
         "Sail loads AWS config once per process, so it would keep the first identity. "
-        "Run the new profile in a new process."
+        "To fix: set the profile once for the whole process, before it starts (for example "
+        "PRYTT_S3_PROFILE in the shell, in mise.toml [env] or in the CI job, not per test), "
+        "or restart the process (or notebook kernel) to switch profiles."
     )
 
 

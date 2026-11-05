@@ -240,6 +240,20 @@ def test_a_different_profile_in_a_later_session_raises(project, monkeypatch, sta
     assert os.environ["AWS_PROFILE"] == "team-sso"
 
 
+def test_the_one_profile_error_says_how_to_fix_it(project, monkeypatch, start_session):
+    configure(project, monkeypatch)
+    start_session()
+
+    configure(project, monkeypatch, PRYTT_S3_PROFILE="team-sso")
+    with pytest.raises(RuntimeError) as excinfo:
+        start_session()
+
+    message = str(excinfo.value)
+    assert "no s3.profile" in message
+    assert "PRYTT_S3_PROFILE" in message and "mise.toml" in message and "CI" in message
+    assert "restart" in message and "kernel" in message
+
+
 def test_the_same_profile_in_a_later_session_is_fine(project, monkeypatch, start_session):
     configure(project, monkeypatch, '[s3]\nprofile = "team-sso"\n')
     start_session()

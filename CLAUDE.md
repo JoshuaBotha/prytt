@@ -2,7 +2,7 @@
 
 Drop-in `awsglue` + PySpark shim so unmodified AWS Glue 6 job scripts run locally on Sail (Rust Spark Connect server), no JVM.
 
-- Docs: `README.md` (quick start) and `docs/` (index `docs/README.md`): user guides in `docs/user/` (behaviour, config, compatibility = what's real vs stubbed), `docs/architecture/overview.md`, `docs/developer/guide.md`, decisions in `docs/adr/` (`db.table` SQL resolution: ADR 0003).
+- Docs: `README.md` (quick start) and `docs/` (index `docs/README.md`): user guides in `docs/user/` (behaviour, config, compatibility = what's real vs stubbed, `s3-and-aws.md` = S3 modes, write lock, AWS auth), `docs/architecture/overview.md`, `docs/developer/guide.md`, decisions in `docs/adr/` (`db.table` SQL resolution: ADR 0003).
 - Spike findings: `docs/research/spikes.md` (scripts removed; recover with `git show 6d9ad0e:spikes/<file>`). S5 SSO-profile check skipped by decision (S3 passthrough is best-effort).
 - Directory is still named `pritt/`; the project name is `prytt` everywhere else.
 - Before any change: follow `CONTRIBUTING.md` (branch names, PR titles, tests, done = `mise run ci` green), including its "For coding agents" section.

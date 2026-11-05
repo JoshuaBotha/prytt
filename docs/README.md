@@ -10,7 +10,8 @@ For Glue job authors and the people who test their jobs.
 | Page | Covers |
 |---|---|
 | [Install](user/install.md) | Requirements, adding prytt to a project, what it installs, upgrading, turning it off |
-| [Run Glue jobs locally](user/running-jobs.md) | Running scripts, job arguments, S3 paths, catalog tables, Iceberg, strict mode, log output |
+| [Run Glue jobs locally](user/running-jobs.md) | Running scripts, job arguments, S3 paths (basics), catalog tables, Iceberg, strict mode, log output |
+| [S3 and AWS](user/s3-and-aws.md) | Local vs passthrough mode, per-table `mode`, the S3 write lock, AWS profiles and SSO, a decision table |
 | [Test with pytest](user/testing.md) | Fixtures, unit and end-to-end job tests, CI |
 | [Configuration reference](user/configuration.md) | Every setting, env var, format name and option |
 | [Compatibility and limits](user/compatibility.md) | What's real, passed through, stubbed or unsupported; where local runs differ from Glue |
@@ -24,7 +25,7 @@ For solution architects, reviewers, and anyone deciding whether prytt fits.
 |---|---|
 | [Solution architecture](architecture/overview.md) | Context, goals, components, runtime flows, data layout, deployment shapes, security, risks |
 | [Architecture decisions](adr/) | ADRs: in-process Sail, the `.pth` import hook, catalog tables in SQL, Iceberg `glue_catalog` |
-| [Glossary](../GLOSSARY.md) | Mapped table, registered table, temp view |
+| [Glossary](../GLOSSARY.md) | Mapped table, registered table, temp view, local table, passthrough table, S3 write lock |
 
 ## Changing prytt
 
