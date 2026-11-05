@@ -117,7 +117,7 @@ flowchart TB
 | Paths and catalog | `prytt.paths` | Map `s3://` URIs to local paths; resolve mapped tables; register them as tables and temp views; wrap `spark.sql`/`spark.table` for name resolution and the unmapped-table hint. |
 | SQL text | `prytt.sqltext` | Quote identifiers and literals; mask comments and strings; find names in table positions. A heuristic tokenizer, not a parser. |
 | Iceberg | `prytt.iceberg` | Declare `glue_catalog` to Sail; per session set the warehouse dir and re-register databases and tables found on disk; add `LOCATION` to `CREATE DATABASE glue_catalog.<db>`. |
-| S3 write lock | `prytt.s3lock` | Refuse writes to real S3 (`PryttS3WriteBlocked`) unless `PRYTT_ALLOW_S3_WRITES` unlocks them: wrap `DataFrameWriter.save`, check Glue writers after path mapping, reject an `s3://` Iceberg warehouse; one `WARN` per session when unlocked. |
+| S3 write lock | `prytt.s3lock` | Refuse writes to real S3 (`PryttS3WriteBlocked`) unless `PRYTT_ALLOW_S3_WRITES` unlocks them: wrap `DataFrameWriter.save` / `saveAsTable` / `insertInto`, the `DataFrameWriterV2` terminal methods and `spark.sql` (a heuristic write classifier on `sqltext` tokens; per-session registry of tables created at an S3 location), check Glue writers after path mapping, reject an `s3://` Iceberg warehouse; one `WARN` per session when unlocked. |
 | AWS profile | `prytt.aws` | At every session start, before Sail starts: export `s3.profile` as `AWS_PROFILE`, refuse static keys that would shadow it when passthrough is in use, log the region, hold one profile per process. |
 | I/O and formats | `prytt.io`, `prytt.formats` | Read/write DataFrames at mapped locations; translate Glue format names and options to Spark. |
 | Logging and strict mode | `prytt.stub` | `[prytt] TAG message` logging; `LogAny` catch-all base class; `GlueLocalUnsupported`. |
@@ -195,9 +195,13 @@ return the same address.
 
 Sail's catalogs live in memory and are per session, so everything prytt
 registers is redone for each new `SparkSession` (tracked by
-`session_id`). Two callbacks run, in order:
+`session_id`). Three callbacks run, in order:
 
-1. **`paths.register_mapped_tables`.** For each `[catalog."db.table"]`
+1. **`s3lock.setup_session`.** Wrap `DataFrameWriter.save`, `saveAsTable`
+   and `insertInto` and the `DataFrameWriterV2` terminal methods (once per
+   process) and this session's `spark.sql` with the S3 write lock's SQL
+   write classifier; log the unlocked `WARN`.
+2. **`paths.register_mapped_tables`.** For each `[catalog."db.table"]`
    entry: resolve the format (ORC raises here), map the path, check the
    location has data, then create temp view `db_table` and run
    `CREATE DATABASE IF NOT EXISTS db` and
@@ -206,18 +210,21 @@ registers is redone for each new `SparkSession` (tracked by
    rather than failing the session. Finally it wraps `spark.sql` and
    `spark.table` (see below). Design:
    [ADR 0003](../adr/0003-mapped-tables-as-sail-external-tables.md).
-2. **`iceberg.setup_session`.** Set `spark.sql.warehouse.dir` to the
+3. **`iceberg.setup_session`.** Set `spark.sql.warehouse.dir` to the
    absolute warehouse; if the server has a `glue_catalog`, give its
    `default` database a location, wrap `spark.sql` to add `LOCATION` to
    `CREATE DATABASE glue_catalog.<db>`, and re-register every database and
    Iceberg table found under `<warehouse>/<db>/<tbl>`. Design:
    [ADR 0004](../adr/0004-glue-catalog-rebuilt-from-warehouse.md).
 
-The two `spark.sql` wrappers stack: Iceberg's outer wrapper rewrites
-`CREATE DATABASE`, then the paths wrapper rewrites table names. Each uses its
-own marker attribute (`__prytt_wrapped__`, `__prytt_names_wrapped__`),
-because `functools.wraps` copies attributes from the inner function to the
-outer one.
+The three `spark.sql` wrappers stack: Iceberg's outer wrapper rewrites
+`CREATE DATABASE`, then the paths wrapper rewrites table names, then the
+innermost S3 write lock wrapper checks the rewritten SQL for writes to S3
+(and records tables created at, or moved by `ALTER TABLE ... SET LOCATION`
+to, an S3 location in its per-session registry). Each uses its own marker attribute (`__prytt_wrapped__`,
+`__prytt_names_wrapped__`, `__prytt_s3lock_sql_wrapped__`), because
+`functools.wraps` copies attributes from the inner function to the outer
+one.
 
 ### Reading and writing through `GlueContext`
 

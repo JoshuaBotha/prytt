@@ -241,7 +241,29 @@ def test_glue_catalog_write_to_local_table_under_global_passthrough_writes_under
     assert rows(spark.read.json((s3_root / "raw" / "orders").as_posix())) == [7]
 
 
-@pytest.mark.xfail(reason="needs tickets 02/03", strict=False)
+TABLE_WRITES = {
+    "saveAsTable": lambda spark, df, name: df.write.mode("append").saveAsTable(name),
+    "writeTo.append": lambda spark, df, name: df.writeTo(name).append(),
+    "sql.insert": lambda spark, df, name: spark.sql(f"INSERT INTO {name} VALUES (7)"),
+    "sql.merge": lambda spark, df, name: spark.sql(
+        f"MERGE INTO {name} t USING (SELECT 7 AS id) s ON t.id = s.id "
+        "WHEN NOT MATCHED THEN INSERT *"
+    ),
+}
+
+
+@pytest.mark.parametrize("write", TABLE_WRITES.values(), ids=TABLE_WRITES.keys())
+def test_table_write_to_passthrough_table_under_global_local_is_blocked(
+    project, monkeypatch, new_session, write
+):
+    configure(project, monkeypatch, MIXED)
+    spark = new_session()
+    df = spark.createDataFrame([(7,)], "id int")
+
+    with pytest.raises(PryttS3WriteBlocked, match=r"ref_db\.prices .*s3://ref/prices/"):
+        write(spark, df, "ref_db.prices")
+
+
 def test_save_as_table_into_passthrough_table_is_blocked(project, monkeypatch, spark):
     configure(project, monkeypatch, MIXED)
     df = spark.createDataFrame([(7,)], "id int")
@@ -250,13 +272,26 @@ def test_save_as_table_into_passthrough_table_is_blocked(project, monkeypatch, s
         df.write.mode("append").saveAsTable("ref_db.prices")
 
 
-@pytest.mark.xfail(reason="needs tickets 02/03", strict=False)
 def test_sql_insert_into_passthrough_table_is_blocked(project, monkeypatch, new_session):
     configure(project, monkeypatch, MIXED)
     spark = new_session()
 
     with pytest.raises(PryttS3WriteBlocked):
         spark.sql("INSERT INTO ref_db.prices VALUES (7)").collect()
+
+
+@pytest.mark.parametrize("write", ["saveAsTable", "sql.insert"])
+def test_table_write_to_local_table_under_global_passthrough_is_not_blocked(
+    project, monkeypatch, s3_root, new_session, write
+):
+    configure(project, monkeypatch, LOCAL_TABLE, PRYTT_S3_MODE="passthrough")
+    put_orders(s3_root, 1)
+    spark = new_session()
+    df = spark.createDataFrame([(7,)], "id int")
+
+    TABLE_WRITES[write](spark, df, "raw_db.orders")
+
+    assert rows(spark.read.json((s3_root / "raw" / "orders").as_posix())) == [1, 7]
 
 
 def test_from_options_follows_the_global_mode_not_the_tables(
