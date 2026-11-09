@@ -5,7 +5,7 @@ description = "Drop-in awsglue + PySpark shim: run unmodified AWS Glue 6 job scr
 requires-python = ">=3.13"
 dependencies = [
     "pysail>=0.7.3",
-    "pyspark-client>=4.1,<4.2",
+    "pyspark-client>=4.1,<4.4",
 ]
 
 [dependency-groups]
