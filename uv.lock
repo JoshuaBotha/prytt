@@ -333,7 +333,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "pysail", specifier = ">=0.7.3" },
-    { name = "pyspark-client", specifier = ">=4.1,<4.2" },
+    { name = "pyspark-client", specifier = ">=4.1,<4.4" },
 ]
 
 [package.metadata.requires-dev]
@@ -411,7 +411,7 @@ wheels = [
 
 [[package]]
 name = "pyspark-client"
-version = "4.1.4"
+version = "4.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "googleapis-common-protos" },
@@ -423,7 +423,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d8/9c/eb46566d0c21933882f90e67e491d6061af12150459dde38c9ec143d57c6/pyspark_client-4.1.4.tar.gz", hash = "sha256:daec6085d06babc6aa7297b0abb8673db8cd9075579fa5b8fdfde02f565ed82b", size = 1609573, upload-time = "2026-10-27T18:17:46.907Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/e9/10590e3cbeb912a1ba8180335296d9ef6be7674b02fcb9a58b9f51212f99/pyspark_client-4.3.0.tar.gz", hash = "sha256:7294e24ffbb896a94e3f9a4bab4b022e1f0500b3c57f76eab7b02f6de029769f", size = 1745601, upload-time = "2026-10-30T15:31:21.467Z" }
 
 [[package]]
 name = "pytest"
